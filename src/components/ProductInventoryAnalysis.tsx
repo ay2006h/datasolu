@@ -70,6 +70,7 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
   const [targetCoverageDays, setTargetCoverageDays] = useState<number>(30);
   const [safetyStockPercent, setSafetyStockPercent] = useState<number>(20);
   const [defaultPeriodDays, setDefaultPeriodDays] = useState<number>(30);
+  const [useManualPeriodDays, setUseManualPeriodDays] = useState<boolean>(false);
 
   // 3. Table Filtering & Sorting State
   const [activeMovementTab, setActiveMovementTab] = useState<'all' | 'king' | 'fast' | 'medium' | 'slow' | 'restock'>('all');
@@ -84,6 +85,7 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
     setStartDate('');
     setEndDate('');
     setCategoryFilter('all');
+    setUseManualPeriodDays(!detected.dateCol);
   }, [sheet]);
 
   // Run product & inventory analytics engine
@@ -98,6 +100,7 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
         targetCoverageDays,
         safetyStockPercent,
         defaultPeriodDays,
+        useManualPeriodDays: useManualPeriodDays || !mapping.dateCol,
       },
       language
     );
@@ -110,6 +113,7 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
     targetCoverageDays,
     safetyStockPercent,
     defaultPeriodDays,
+    useManualPeriodDays,
     language,
   ]);
 
@@ -376,6 +380,34 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
+            {/* Quick File Sales Period Duration Selector (Always accessible) */}
+            <div className="flex items-center gap-2 bg-white/10 border border-amber-400/40 rounded-xl px-3 py-1.5 backdrop-blur-sm">
+              <Calendar className="w-4 h-4 text-amber-400 flex-shrink-0" />
+              <span className="text-[11px] font-bold text-amber-200 whitespace-nowrap">
+                {isAr ? 'فترة مبيعات الملف:' : 'File Period:'}
+              </span>
+              <input
+                type="number"
+                min={1}
+                max={3650}
+                value={useManualPeriodDays || !mapping.dateCol ? defaultPeriodDays : summary.analyzedDaysCount}
+                onChange={(e) => {
+                  setUseManualPeriodDays(true);
+                  const num = parseInt(e.target.value, 10);
+                  setDefaultPeriodDays(!isNaN(num) && num > 0 ? num : 1);
+                }}
+                className="w-16 text-xs font-black text-center bg-slate-900/90 text-amber-300 border border-amber-400/50 rounded-lg px-1.5 py-1 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                title={
+                  isAr
+                    ? 'حدد عدد أيام المبيعات التي يمثلها الملف لحساب المتوسط اليومي بدقة'
+                    : 'Set number of sales days represented by the file'
+                }
+              />
+              <span className="text-[11px] font-bold text-slate-300">
+                {isAr ? 'يوم' : 'days'}
+              </span>
+            </div>
+
             <button
               onClick={() => setShowMappingPanel(!showMappingPanel)}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/15 transition-all"
@@ -667,110 +699,209 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
           </div>
 
           {/* Period Selection & Replenishment Policy Bar */}
-          <div className="pt-4 border-t border-slate-200 dark:border-slate-700 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
-            {/* Start Date */}
-            <div>
-              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
-                {isAr ? 'من تاريخ (بداية فترة التحليل):' : 'Start Date:'}
-              </label>
-              <input
-                type="date"
-                value={startDate}
-                min={dateBounds?.minDate}
-                max={dateBounds?.maxDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                disabled={!mapping.dateCol}
-                className="w-full text-xs font-semibold bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-slate-800 dark:text-slate-200 disabled:opacity-50"
-              />
-            </div>
+          <div className="pt-4 border-t border-slate-200 dark:border-slate-700 space-y-4">
+            {/* Period Mode Selector & File Sales Duration Control */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-50/90 via-indigo-50/60 to-amber-50/90 dark:from-slate-900 dark:via-indigo-950/30 dark:to-slate-900 border border-amber-300/80 dark:border-amber-700/60 flex flex-wrap items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white">
+                    {isAr
+                      ? 'تحديد فترة مبيعات الملف (لحساب المتوسطات اليومية والكميات المقترحة بدقة):'
+                      : 'File Sales Period Duration (For Accurate Daily Velocity & Restock Decisions):'}
+                  </h4>
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-amber-500 text-slate-950">
+                    {isAr
+                      ? `المعتمد حالياً: ${summary.analyzedDaysCount} يوم`
+                      : `Active: ${summary.analyzedDaysCount} Days`}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                  {isAr
+                    ? 'إذا كان ملف الإكسيل تجميعياً ولا يحتوي على عمود تاريخ (أو أردت تحديد مدة المبيعات يدوياً)، حدد عدد أيام فترة المبيعات هنا ليتم قسمة المبيعات عليها وحساب معدل السحب اليومي وقرارات التوريد بشكل مضبوط 100%.'
+                    : 'If your Excel file does not contain a date column (or has aggregated totals), specify the sales period duration in days so daily averages and restock quantities are calculated accurately.'}
+                </p>
+              </div>
 
-            {/* End Date */}
-            <div>
-              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
-                {isAr ? 'إلى تاريخ (نهاية فترة التحليل):' : 'End Date:'}
-              </label>
-              <input
-                type="date"
-                value={endDate}
-                min={dateBounds?.minDate}
-                max={dateBounds?.maxDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                disabled={!mapping.dateCol}
-                className="w-full text-xs font-semibold bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-slate-800 dark:text-slate-200 disabled:opacity-50"
-              />
-            </div>
-
-            {/* Target Coverage Days for Suggested Order Qty */}
-            <div>
-              <label className="block text-xs font-bold text-indigo-600 dark:text-indigo-400 mb-1">
-                {isAr ? 'فترة التوريد المستهدفة (يوم):' : 'Target Coverage (Days):'}
-              </label>
-              <select
-                value={targetCoverageDays}
-                onChange={(e) => setTargetCoverageDays(Number(e.target.value))}
-                className="w-full text-xs font-bold bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-300 dark:border-indigo-700 rounded-xl px-3 py-2 text-indigo-900 dark:text-indigo-200"
-              >
-                <option value={7}>{isAr ? 'تغطية 7 أيام (أسبوع)' : '7 Days (1 Week)'}</option>
-                <option value={14}>{isAr ? 'تغطية 14 يوم (أسبوعين)' : '14 Days (2 Weeks)'}</option>
-                <option value={30}>{isAr ? 'تغطية 30 يوم (شهر كامل)' : '30 Days (1 Month)'}</option>
-                <option value={60}>{isAr ? 'تغطية 60 يوم (شهرين)' : '60 Days (2 Months)'}</option>
-                <option value={90}>{isAr ? 'تغطية 90 يوم (ربع سنوي)' : '90 Days (Quarter)'}</option>
-              </select>
-            </div>
-
-            {/* Safety Stock Buffer % */}
-            <div>
-              <label className="block text-xs font-bold text-emerald-600 dark:text-emerald-400 mb-1">
-                {isAr ? 'نسبة مخزون الأمان الإضافي:' : 'Safety Stock Buffer:'}
-              </label>
-              <select
-                value={safetyStockPercent}
-                onChange={(e) => setSafetyStockPercent(Number(e.target.value))}
-                className="w-full text-xs font-bold bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-700 rounded-xl px-3 py-2 text-emerald-900 dark:text-emerald-200"
-              >
-                <option value={0}>{isAr ? '0% (بدون رصيد أمان)' : '0% (Exact Match)'}</option>
-                <option value={10}>{isAr ? '+10% مخزون أمان' : '+10% Safety Buffer'}</option>
-                <option value={20}>{isAr ? '+20% مخزون أمان (موصى به)' : '+20% Safety Buffer (Recommended)'}</option>
-                <option value={30}>{isAr ? '+30% مخزون أمان عالي' : '+30% High Buffer'}</option>
-                <option value={50}>{isAr ? '+50% لمواسم الذروة' : '+50% Peak Season'}</option>
-              </select>
-            </div>
-
-            {/* Category Filter or Reset Dates */}
-            <div className="flex items-center gap-2">
-              {categories.length > 0 && (
-                <div className="flex-1">
-                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
-                    {isAr ? 'تصفية حسب القسم:' : 'Filter Department:'}
-                  </label>
-                  <select
-                    value={categoryFilter}
-                    onChange={(e) => setCategoryFilter(e.target.value)}
-                    className="w-full text-xs font-semibold bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-slate-800 dark:text-slate-200"
+              {/* Toggle Manual vs Date Column Mode */}
+              {mapping.dateCol && (
+                <div className="flex items-center gap-1 bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setUseManualPeriodDays(false)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      !useManualPeriodDays
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
+                    }`}
                   >
-                    <option value="all">{isAr ? 'جميع الأقسام' : 'All Categories'}</option>
-                    {categories.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                  </select>
+                    {isAr ? 'حساب تلقائي من عمود التاريخ' : 'From Date Column'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUseManualPeriodDays(true)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      useManualPeriodDays
+                        ? 'bg-amber-500 text-slate-950 shadow-sm'
+                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
+                    }`}
+                  >
+                    {isAr ? 'تحديد مدة المبيعات يدوياً' : 'Manual Period Days'}
+                  </button>
                 </div>
               )}
+            </div>
 
-              {(startDate || endDate || categoryFilter !== 'all') && (
-                <button
-                  onClick={() => {
-                    setStartDate('');
-                    setEndDate('');
-                    setCategoryFilter('all');
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
+              {/* Manual File Sales Period Duration (Days) - Always visible & highlighted when no date col or manual mode */}
+              <div
+                className={`lg:col-span-2 p-3 rounded-2xl border transition-all ${
+                  useManualPeriodDays || !mapping.dateCol
+                    ? 'bg-amber-50/90 dark:bg-amber-950/30 border-amber-400 dark:border-amber-600 ring-2 ring-amber-500/20'
+                    : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700'
+                }`}
+              >
+                <label className="block text-xs font-extrabold text-slate-800 dark:text-slate-100 mb-1.5">
+                  {isAr
+                    ? 'مدة فترة المبيعات التي يمثلها الملف (بالأيام):'
+                    : 'Sales Period Represented by File (Days):'}
+                </label>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={
+                      [7, 14, 30, 60, 90, 180, 365].includes(defaultPeriodDays)
+                        ? defaultPeriodDays
+                        : 'custom'
+                    }
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setUseManualPeriodDays(true);
+                      if (val !== 'custom') {
+                        setDefaultPeriodDays(Number(val));
+                      }
+                    }}
+                    className="flex-1 text-xs font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-2.5 py-2 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500"
+                  >
+                    <option value={7}>{isAr ? 'أسبوع واحد (7 أيام)' : '1 Week (7 Days)'}</option>
+                    <option value={14}>{isAr ? 'أسبوعين (14 يوم)' : '2 Weeks (14 Days)'}</option>
+                    <option value={30}>{isAr ? 'شهر واحد (30 يوم)' : '1 Month (30 Days)'}</option>
+                    <option value={60}>{isAr ? 'شهرين (60 يوم)' : '2 Months (60 Days)'}</option>
+                    <option value={90}>{isAr ? 'ربع سنة / 3 شهور (90 يوم)' : 'Quarter (90 Days)'}</option>
+                    <option value={180}>{isAr ? 'نصف سنة / 6 شهور (180 يوم)' : '6 Months (180 Days)'}</option>
+                    <option value={365}>{isAr ? 'سنة كاملة (365 يوم)' : '1 Year (365 Days)'}</option>
+                    <option value="custom">{isAr ? 'عدد أيام مخصص...' : 'Custom Days...'}</option>
+                  </select>
+
+                  <div className="relative w-24">
+                    <input
+                      type="number"
+                      min={1}
+                      max={3650}
+                      value={defaultPeriodDays}
+                      onChange={(e) => {
+                        setUseManualPeriodDays(true);
+                        const num = parseInt(e.target.value, 10);
+                        setDefaultPeriodDays(!isNaN(num) && num > 0 ? num : 1);
+                      }}
+                      className="w-full text-xs font-black text-center bg-white dark:bg-slate-800 border border-amber-400 dark:border-amber-600 rounded-xl px-2 py-2 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500"
+                      title={isAr ? 'أدخل عدد أيام فترة المبيعات' : 'Enter number of days'}
+                    />
+                  </div>
+                  <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                    {isAr ? 'يوم' : 'd'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Start Date (when using Date Column) */}
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
+                  {isAr ? 'من تاريخ (فلتر التاريخ):' : 'Start Date:'}
+                </label>
+                <input
+                  type="date"
+                  value={startDate}
+                  min={dateBounds?.minDate}
+                  max={dateBounds?.maxDate}
+                  onChange={(e) => {
+                    setUseManualPeriodDays(false);
+                    setStartDate(e.target.value);
                   }}
-                  className="px-3 py-2 rounded-xl bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-300 text-xs font-bold hover:bg-rose-200 transition-colors"
-                  title={isAr ? 'مسح الفلاتر' : 'Reset'}
+                  disabled={!mapping.dateCol}
+                  className="w-full text-xs font-semibold bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-slate-800 dark:text-slate-200 disabled:opacity-50"
+                />
+              </div>
+
+              {/* End Date (when using Date Column) */}
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
+                  {isAr ? 'إلى تاريخ (فلتر التاريخ):' : 'End Date:'}
+                </label>
+                <input
+                  type="date"
+                  value={endDate}
+                  min={dateBounds?.minDate}
+                  max={dateBounds?.maxDate}
+                  onChange={(e) => {
+                    setUseManualPeriodDays(false);
+                    setEndDate(e.target.value);
+                  }}
+                  disabled={!mapping.dateCol}
+                  className="w-full text-xs font-semibold bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-slate-800 dark:text-slate-200 disabled:opacity-50"
+                />
+              </div>
+
+              {/* Target Coverage Days for Suggested Order Qty */}
+              <div>
+                <label className="block text-xs font-bold text-indigo-600 dark:text-indigo-400 mb-1">
+                  {isAr ? 'فترة التوريد المطلوب توفيرها:' : 'Target Restock Coverage:'}
+                </label>
+                <select
+                  value={targetCoverageDays}
+                  onChange={(e) => setTargetCoverageDays(Number(e.target.value))}
+                  className="w-full text-xs font-bold bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-300 dark:border-indigo-700 rounded-xl px-3 py-2 text-indigo-900 dark:text-indigo-200"
                 >
-                  {isAr ? 'كل الفترة' : 'Reset'}
-                </button>
-              )}
+                  <option value={7}>{isAr ? 'توفير يكفي 7 أيام (أسبوع)' : '7 Days (1 Week)'}</option>
+                  <option value={14}>{isAr ? 'توفير يكفي 14 يوم (أسبوعين)' : '14 Days (2 Weeks)'}</option>
+                  <option value={30}>{isAr ? 'توفير يكفي 30 يوم (شهر)' : '30 Days (1 Month)'}</option>
+                  <option value={60}>{isAr ? 'توفير يكفي 60 يوم (شهرين)' : '60 Days (2 Months)'}</option>
+                  <option value={90}>{isAr ? 'توفير يكفي 90 يوم (3 شهور)' : '90 Days (Quarter)'}</option>
+                </select>
+              </div>
+
+              {/* Safety Stock Buffer % & Category Filter */}
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <label className="block text-xs font-bold text-emerald-600 dark:text-emerald-400 mb-1">
+                    {isAr ? 'مخزون الأمان الإضافي:' : 'Safety Buffer:'}
+                  </label>
+                  <select
+                    value={safetyStockPercent}
+                    onChange={(e) => setSafetyStockPercent(Number(e.target.value))}
+                    className="w-full text-xs font-bold bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-700 rounded-xl px-3 py-2 text-emerald-900 dark:text-emerald-200"
+                  >
+                    <option value={0}>{isAr ? '0% (بدون أمان)' : '0% (Exact)'}</option>
+                    <option value={10}>{isAr ? '+10% أمان' : '+10% Buffer'}</option>
+                    <option value={20}>{isAr ? '+20% أمان (موصى به)' : '+20% Buffer'}</option>
+                    <option value={30}>{isAr ? '+30% أمان عالي' : '+30% High'}</option>
+                    <option value={50}>{isAr ? '+50% ذروة' : '+50% Peak'}</option>
+                  </select>
+                </div>
+
+                {(startDate || endDate || categoryFilter !== 'all') && (
+                  <button
+                    onClick={() => {
+                      setStartDate('');
+                      setEndDate('');
+                      setCategoryFilter('all');
+                    }}
+                    className="px-3 py-2 rounded-xl bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-300 text-xs font-bold hover:bg-rose-200 transition-colors"
+                    title={isAr ? 'مسح الفلاتر' : 'Reset'}
+                  >
+                    {isAr ? 'إعادة' : 'Reset'}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

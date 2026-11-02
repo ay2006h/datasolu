@@ -615,6 +615,7 @@ export const analyzeProductsAndInventory = (
     targetCoverageDays: number;
     safetyStockPercent: number;
     defaultPeriodDays: number;
+    useManualPeriodDays?: boolean;
   },
   lang: 'ar' | 'en' = 'ar'
 ): {
@@ -653,8 +654,8 @@ export const analyzeProductsAndInventory = (
       : null;
 
   // 2. Filter rows by selected Date Period and Category
-  const startTs = options.startDate ? new Date(options.startDate + 'T00:00:00').getTime() : null;
-  const endTs = options.endDate ? new Date(options.endDate + 'T23:59:59').getTime() : null;
+  const startTs = !options.useManualPeriodDays && options.startDate ? new Date(options.startDate + 'T00:00:00').getTime() : null;
+  const endTs = !options.useManualPeriodDays && options.endDate ? new Date(options.endDate + 'T23:59:59').getTime() : null;
 
   let filteredMinTs = Infinity;
   let filteredMaxTs = -Infinity;
@@ -665,7 +666,7 @@ export const analyzeProductsAndInventory = (
       if (catVal !== options.categoryFilter) return false;
     }
 
-    if (mapping.dateCol && (startTs || endTs)) {
+    if (mapping.dateCol && !options.useManualPeriodDays && (startTs || endTs)) {
       const d = parseDateValue(row[mapping.dateCol]);
       if (!d) return false;
       const ts = d.getTime();
@@ -686,8 +687,10 @@ export const analyzeProductsAndInventory = (
   });
 
   // Determine number of analyzed days in the period
-  let analyzedDaysCount = options.defaultPeriodDays || 30;
-  if (startTs && endTs && endTs >= startTs) {
+  let analyzedDaysCount = Math.max(1, options.defaultPeriodDays || 30);
+  if (options.useManualPeriodDays || !mapping.dateCol) {
+    analyzedDaysCount = Math.max(1, options.defaultPeriodDays || 30);
+  } else if (startTs && endTs && endTs >= startTs) {
     analyzedDaysCount = Math.max(1, Math.round((endTs - startTs) / (1000 * 60 * 60 * 24)) + 1);
   } else if (filteredMinTs !== Infinity && filteredMaxTs !== -Infinity) {
     const diffDays = Math.round((filteredMaxTs - filteredMinTs) / (1000 * 60 * 60 * 24)) + 1;
