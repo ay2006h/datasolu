@@ -1,5 +1,54 @@
 export type Language = 'ar' | 'en';
 export type Theme = 'light' | 'dark';
+export type AppMode = 'home' | 'sales' | 'inventory';
+
+export interface SalesColumnMapping {
+  revenueCol: string;
+  profitCol: string;
+  costCol: string;
+  qtyCol: string;
+  categoryCol: string;
+  regionCol: string;
+  clientCol: string;
+  salespersonCol: string;
+  dateCol: string;
+  statusCol: string;
+}
+
+export interface SalesSwotAnalysis {
+  strengths: {
+    id: string;
+    title: string;
+    detail: string;
+    metric?: string;
+  }[];
+  weaknesses: {
+    id: string;
+    title: string;
+    detail: string;
+    metric?: string;
+  }[];
+  recommendations: {
+    id: string;
+    title: string;
+    actionPlan: string;
+    expectedImpact: string;
+    priority: 'high' | 'medium';
+  }[];
+  summaryMetrics: {
+    totalRevenue: number;
+    totalProfit: number;
+    totalCost: number;
+    overallMarginPercent: number;
+    avgOrderValue: number;
+    topCategory: { name: string; revenue: number; sharePercent: number } | null;
+    weakestCategory: { name: string; revenue: number; sharePercent: number } | null;
+    topRegion: { name: string; revenue: number; sharePercent: number } | null;
+    weakestRegion: { name: string; revenue: number; sharePercent: number } | null;
+    topClient: { name: string; revenue: number; sharePercent: number } | null;
+  };
+}
+
 
 export type ColumnDataType = 'number' | 'string' | 'date' | 'boolean' | 'status';
 export type TimeGranularity = 'day' | 'month' | 'quarter' | 'year';

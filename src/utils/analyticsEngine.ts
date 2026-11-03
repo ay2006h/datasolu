@@ -1,7 +1,20 @@
-import { BusinessStatusSummary, ColumnInfo, KpiMetric, SheetData, TimeComparisonPeriod, TimeGranularity } from '../types';
+import {
+  BusinessStatusSummary,
+  ColumnInfo,
+  KpiMetric,
+  SalesColumnMapping,
+  SalesSwotAnalysis,
+  SheetData,
+  TimeComparisonPeriod,
+  TimeGranularity,
+} from '../types';
 import { parseDateValue } from './excelParser';
 
-export const computeKpiMetrics = (sheet: SheetData, lang: 'ar' | 'en'): KpiMetric[] => {
+export const computeKpiMetrics = (
+  sheet: SheetData,
+  lang: 'ar' | 'en',
+  salesMapping?: SalesColumnMapping
+): KpiMetric[] => {
   const isAr = lang === 'ar';
   const { rows, columns } = sheet;
 
@@ -9,49 +22,56 @@ export const computeKpiMetrics = (sheet: SheetData, lang: 'ar' | 'en'): KpiMetri
 
   const numericCols = columns.filter((c) => c.type === 'number');
 
-  // Look for revenue/sales column
-  const revenueCol = numericCols.find((c) => {
-    const name = c.name.toLowerCase();
-    return (
-      name.includes('revenue') ||
-      name.includes('sales') ||
-      name.includes('مبيعات') ||
-      name.includes('إيراد') ||
-      name.includes('ايراد') ||
-      name.includes('مبلغ') ||
-      name.includes('المبلغ') ||
-      name.includes('budget') ||
-      name.includes('ميزانية')
-    );
-  }) || numericCols[0];
+  // Look for revenue/sales column (prioritize user mapping if provided)
+  const revenueCol =
+    (salesMapping?.revenueCol ? columns.find((c) => c.name === salesMapping.revenueCol) : undefined) ||
+    numericCols.find((c) => {
+      const name = c.name.toLowerCase();
+      return (
+        name.includes('revenue') ||
+        name.includes('sales') ||
+        name.includes('مبيعات') ||
+        name.includes('إيراد') ||
+        name.includes('ايراد') ||
+        name.includes('مبلغ') ||
+        name.includes('المبلغ') ||
+        name.includes('budget') ||
+        name.includes('ميزانية')
+      );
+    }) ||
+    numericCols[0];
 
   // Look for profit/margin column
-  const profitCol = numericCols.find((c) => {
-    const name = c.name.toLowerCase();
-    return (
-      (name.includes('profit') ||
-        name.includes('ربح') ||
-        name.includes('أرباح') ||
-        name.includes('ارباح') ||
-        name.includes('صافي')) &&
-      c !== revenueCol
-    );
-  });
+  const profitCol =
+    (salesMapping?.profitCol ? columns.find((c) => c.name === salesMapping.profitCol) : undefined) ||
+    numericCols.find((c) => {
+      const name = c.name.toLowerCase();
+      return (
+        (name.includes('profit') ||
+          name.includes('ربح') ||
+          name.includes('أرباح') ||
+          name.includes('ارباح') ||
+          name.includes('صافي')) &&
+        c !== revenueCol
+      );
+    });
 
   // Look for cost/expense column
-  const costCol = numericCols.find((c) => {
-    const name = c.name.toLowerCase();
-    return (
-      (name.includes('cost') ||
-        name.includes('expense') ||
-        name.includes('تكلفة') ||
-        name.includes('مصروف') ||
-        name.includes('مصاريف') ||
-        name.includes('إنفاق')) &&
-      c !== revenueCol &&
-      c !== profitCol
-    );
-  });
+  const costCol =
+    (salesMapping?.costCol ? columns.find((c) => c.name === salesMapping.costCol) : undefined) ||
+    numericCols.find((c) => {
+      const name = c.name.toLowerCase();
+      return (
+        (name.includes('cost') ||
+          name.includes('expense') ||
+          name.includes('تكلفة') ||
+          name.includes('مصروف') ||
+          name.includes('مصاريف') ||
+          name.includes('إنفاق')) &&
+        c !== revenueCol &&
+        c !== profitCol
+      );
+    });
 
   // Look for completion/progress column
   const progressCol = numericCols.find((c) => {
@@ -942,4 +962,501 @@ export const analyzeProductsAndInventory = (
     dateBounds,
   };
 };
+
+/**
+ * Automatically detects the columns needed for Sales Analysis (Financials, Category, Region, Client, Salesperson, Date, Status)
+ */
+export const autoDetectSalesMapping = (columns: ColumnInfo[]): SalesColumnMapping => {
+  const findCol = (
+    keywords: string[],
+    preferredType?: 'number' | 'string' | 'date' | 'status',
+    excludeCols: string[] = []
+  ): string => {
+    const candidates = columns.filter((c) => !excludeCols.includes(c.name));
+    if (preferredType) {
+      const typedMatch = candidates.find(
+        (c) =>
+          c.type === preferredType &&
+          keywords.some((kw) => c.name.toLowerCase().includes(kw.toLowerCase()))
+      );
+      if (typedMatch) return typedMatch.name;
+    }
+    const anyMatch = candidates.find((c) =>
+      keywords.some((kw) => c.name.toLowerCase().includes(kw.toLowerCase()))
+    );
+    return anyMatch ? anyMatch.name : '';
+  };
+
+  const revenueCol =
+    findCol(
+      [
+        'قيمة المبيعات', 'إجمالي المبيعات', 'اجمالي المبيعات', 'المبيعات', 'الإيرادات', 'الايرادات', 'إيراد', 'المبلغ', 'القيمة', 'الميزانية',
+        'revenue', 'sales', 'total sales', 'amount', 'turnover', 'budget'
+      ],
+      'number'
+    ) ||
+    columns.find((c) => c.type === 'number')?.name ||
+    '';
+
+  const costCol = findCol(
+    [
+      'التكلفة', 'التكلفة المباشرة', 'تكلفة المبيعات', 'تكلفة', 'المصروف', 'المصروف الفعلي', 'مصاريف',
+      'cost', 'cogs', 'expense', 'spent', 'actual spent'
+    ],
+    'number',
+    [revenueCol]
+  );
+
+  const profitCol = findCol(
+    [
+      'صافي الربح', 'الربح', 'الأرباح', 'ارباح', 'هامش الربح', 'مجمل الربح',
+      'profit', 'net profit', 'margin', 'earnings'
+    ],
+    'number',
+    [revenueCol, costCol]
+  );
+
+  const qtyCol = findCol(
+    [
+      'الكمية المباعة', 'الكمية', 'كمية', 'عدد الوحدات', 'العدد',
+      'sold qty', 'quantity', 'qty', 'units', 'volume'
+    ],
+    'number',
+    [revenueCol, costCol, profitCol]
+  );
+
+  const categoryCol =
+    findCol(
+      [
+        'القسم / الفئة', 'فئة المنتجات', 'القسم', 'الفئة', 'القطاع', 'التصنيف', 'اسم الصنف', 'المنتج',
+        'category', 'department', 'sector', 'segment', 'product', 'item name'
+      ],
+      'string'
+    ) ||
+    columns.find((c) => c.type === 'string')?.name ||
+    '';
+
+  const regionCol = findCol(
+    [
+      'الفرع / المنطقة', 'الفرع', 'المنطقة', 'المدينة', 'الموقع', 'المحافظة',
+      'region', 'branch', 'city', 'location', 'area', 'zone'
+    ],
+    'string',
+    [categoryCol]
+  );
+
+  const clientCol = findCol(
+    [
+      'اسم العميل', 'العميل', 'العملاء', 'الزبون', 'الشركة', 'الجهة',
+      'client', 'customer', 'account', 'company', 'buyer'
+    ],
+    'string',
+    [categoryCol, regionCol]
+  );
+
+  const salespersonCol = findCol(
+    [
+      'مدير الحساب', 'المندوب', 'مندوب المبيعات', 'البائع', 'مدير المشروع', 'المسؤول', 'الموظف',
+      'salesperson', 'account manager', 'rep', 'sales rep', 'agent', 'manager'
+    ],
+    'string',
+    [categoryCol, regionCol, clientCol]
+  );
+
+  const dateCol =
+    findCol(
+      [
+        'التاريخ', 'تاريخ العملية', 'تاريخ', 'تاريخ البيع', 'تاريخ البدء', 'الفترة', 'الشهر',
+        'date', 'order date', 'invoice date', 'start date', 'period', 'month'
+      ],
+      'date'
+    ) ||
+    columns.find((c) => c.type === 'date')?.name ||
+    '';
+
+  const statusCol =
+    findCol(
+      [
+        'حالة الطلب', 'حالة العملية', 'الحالة', 'حالة', 'موقف المشروع', 'الموقف',
+        'status', 'state', 'stage', 'condition'
+      ],
+      'status'
+    ) ||
+    columns.find((c) => c.type === 'status')?.name ||
+    '';
+
+  return {
+    revenueCol,
+    profitCol,
+    costCol,
+    qtyCol,
+    categoryCol,
+    regionCol,
+    clientCol,
+    salespersonCol,
+    dateCol,
+    statusCol,
+  };
+};
+
+/**
+ * Deep Sales SWOT Analysis Engine:
+ * Extracts Strengths (نقاط القوة), Weaknesses (نقاط الضعف), and Actionable Improvement Proposals (مقترحات تحسين المبيعات)
+ */
+export const analyzeSalesStrengthsWeaknessesAndTips = (
+  sheet: SheetData,
+  mapping: SalesColumnMapping,
+  lang: 'ar' | 'en' = 'ar'
+): SalesSwotAnalysis => {
+  const isAr = lang === 'ar';
+  const { rows } = sheet;
+
+  const strengths: SalesSwotAnalysis['strengths'] = [];
+  const weaknesses: SalesSwotAnalysis['weaknesses'] = [];
+  const recommendations: SalesSwotAnalysis['recommendations'] = [];
+
+  let totalRevenue = 0;
+  let totalProfit = 0;
+  let totalCost = 0;
+
+  const catMap = new Map<string, { rev: number; profit: number; count: number }>();
+  const regionMap = new Map<string, { rev: number; profit: number; count: number }>();
+  const clientMap = new Map<string, { rev: number; profit: number; count: number }>();
+  const repMap = new Map<string, { rev: number; profit: number; count: number }>();
+
+  let delayedOrCancelledCount = 0;
+  let lowMarginTransactions = 0;
+
+  rows.forEach((row) => {
+    const rev = mapping.revenueCol ? parseCleanNumber(row[mapping.revenueCol]) : 0;
+    const hasCost = Boolean(mapping.costCol && row[mapping.costCol] !== null && row[mapping.costCol] !== undefined && row[mapping.costCol] !== '');
+    const cost = hasCost ? parseCleanNumber(row[mapping.costCol]) : 0;
+    const hasProfit = Boolean(mapping.profitCol && row[mapping.profitCol] !== null && row[mapping.profitCol] !== undefined && row[mapping.profitCol] !== '');
+    const profit = hasProfit
+      ? parseCleanNumber(row[mapping.profitCol])
+      : hasCost && rev > 0
+      ? rev - cost
+      : rev * 0.25;
+
+    const computedCost = hasCost ? cost : Math.max(0, rev - profit);
+
+    totalRevenue += rev;
+    totalProfit += profit;
+    totalCost += computedCost;
+
+    if (rev > 0 && profit / rev < 0.15) {
+      lowMarginTransactions++;
+    }
+
+    if (mapping.categoryCol && row[mapping.categoryCol]) {
+      const key = String(row[mapping.categoryCol]).trim();
+      const curr = catMap.get(key) || { rev: 0, profit: 0, count: 0 };
+      curr.rev += rev;
+      curr.profit += profit;
+      curr.count += 1;
+      catMap.set(key, curr);
+    }
+
+    if (mapping.regionCol && row[mapping.regionCol]) {
+      const key = String(row[mapping.regionCol]).trim();
+      const curr = regionMap.get(key) || { rev: 0, profit: 0, count: 0 };
+      curr.rev += rev;
+      curr.profit += profit;
+      curr.count += 1;
+      regionMap.set(key, curr);
+    }
+
+    if (mapping.clientCol && row[mapping.clientCol]) {
+      const key = String(row[mapping.clientCol]).trim();
+      const curr = clientMap.get(key) || { rev: 0, profit: 0, count: 0 };
+      curr.rev += rev;
+      curr.profit += profit;
+      curr.count += 1;
+      clientMap.set(key, curr);
+    }
+
+    if (mapping.salespersonCol && row[mapping.salespersonCol]) {
+      const key = String(row[mapping.salespersonCol]).trim();
+      const curr = repMap.get(key) || { rev: 0, profit: 0, count: 0 };
+      curr.rev += rev;
+      curr.profit += profit;
+      curr.count += 1;
+      repMap.set(key, curr);
+    }
+
+    if (mapping.statusCol && row[mapping.statusCol]) {
+      const st = String(row[mapping.statusCol]).toLowerCase();
+      if (
+        st.includes('متأخر') ||
+        st.includes('معلق') ||
+        st.includes('ملغي') ||
+        st.includes('delay') ||
+        st.includes('pending') ||
+        st.includes('cancel')
+      ) {
+        delayedOrCancelledCount++;
+      }
+    }
+  });
+
+  const overallMarginPercent =
+    totalRevenue > 0 ? Math.round((totalProfit / totalRevenue) * 1000) / 10 : 0;
+  const avgOrderValue = rows.length > 0 ? Math.round(totalRevenue / rows.length) : 0;
+
+  // Sort helper
+  const getSortedList = (map: Map<string, { rev: number; profit: number; count: number }>) =>
+    Array.from(map.entries())
+      .map(([name, data]) => ({
+        name,
+        revenue: data.rev,
+        profit: data.profit,
+        count: data.count,
+        margin: data.rev > 0 ? Math.round((data.profit / data.rev) * 1000) / 10 : 0,
+        sharePercent: totalRevenue > 0 ? Math.round((data.rev / totalRevenue) * 1000) / 10 : 0,
+      }))
+      .sort((a, b) => b.revenue - a.revenue);
+
+  const sortedCats = getSortedList(catMap);
+  const sortedRegions = getSortedList(regionMap);
+  const sortedClients = getSortedList(clientMap);
+  const sortedReps = getSortedList(repMap);
+
+  const topCategory = sortedCats[0] || null;
+  const weakestCategory = sortedCats.length > 1 ? sortedCats[sortedCats.length - 1] : null;
+  const topRegion = sortedRegions[0] || null;
+  const weakestRegion = sortedRegions.length > 1 ? sortedRegions[sortedRegions.length - 1] : null;
+  const topClient = sortedClients[0] || null;
+
+  // --- 1. BUILD STRENGTHS (نقاط القوة) ---
+  if (topCategory) {
+    strengths.push({
+      id: 'str-cat',
+      title: isAr
+        ? `قيادة قوية لقطاع/فئة "${topCategory.name}"`
+        : `Dominant Category Performance: "${topCategory.name}"`,
+      detail: isAr
+        ? `يحقق هذا القسم أعلى إيرادات بقيمة ${formatCurrency(topCategory.revenue, isAr)} (${topCategory.sharePercent}% من إجمالي المبيعات) وبهامش ربح ${topCategory.margin}%.`
+        : `Generates ${formatCurrency(topCategory.revenue, isAr)} (${topCategory.sharePercent}% of total sales) with a ${topCategory.margin}% profit margin.`,
+      metric: `${topCategory.sharePercent}%`,
+    });
+  }
+
+  if (overallMarginPercent >= 25) {
+    strengths.push({
+      id: 'str-margin',
+      title: isAr
+        ? `كفاءة ربحية ممتازة وهامش صافي مرتفع (${overallMarginPercent}%)`
+        : `Strong Overall Profit Margin (${overallMarginPercent}%)`,
+      detail: isAr
+        ? `صافي الأرباح المحقق بلغ ${formatCurrency(totalProfit, isAr)} من إجمالي مبيعات ${formatCurrency(totalRevenue, isAr)}، مما يمنح المنشأة مرونة مالية عالية للتوسع والعروض الترويجية.`
+        : `Net profit reached ${formatCurrency(totalProfit, isAr)} from ${formatCurrency(totalRevenue, isAr)} in sales, providing strong financial cushion for growth.`,
+      metric: `${overallMarginPercent}%`,
+    });
+  }
+
+  if (topRegion) {
+    strengths.push({
+      id: 'str-region',
+      title: isAr
+        ? `تفوق سوقي وجغرافي في "${topRegion.name}"`
+        : `Regional Market Stronghold in "${topRegion.name}"`,
+      detail: isAr
+        ? `يتصدر فرع/منطقة "${topRegion.name}" المبيعات بحصة ${topRegion.sharePercent}% (${formatCurrency(topRegion.revenue, isAr)}) عبر ${topRegion.count} صفقة ناجحة.`
+        : `Leads regional revenue with ${topRegion.sharePercent}% share (${formatCurrency(topRegion.revenue, isAr)}) across ${topRegion.count} transactions.`,
+      metric: formatCurrency(topRegion.revenue, isAr),
+    });
+  }
+
+  if (topClient) {
+    strengths.push({
+      id: 'str-client',
+      title: isAr
+        ? `ولاء وقوة الحسابات الكبرى (في مقدمتهم: ${topClient.name})`
+        : `High-Value Key Account Retention (${topClient.name})`,
+      detail: isAr
+        ? `ساهم العميل "${topClient.name}" بمبيعات قدرها ${formatCurrency(topClient.revenue, isAr)} (${topClient.sharePercent}% من الإجمالي)، مما يعكس ثقة العملاء الاستراتيجيين.`
+        : `Top client "${topClient.name}" contributed ${formatCurrency(topClient.revenue, isAr)} (${topClient.sharePercent}% of total revenue).`,
+      metric: `${topClient.sharePercent}%`,
+    });
+  }
+
+  if (sortedReps.length > 0) {
+    const bestRep = sortedReps[0];
+    strengths.push({
+      id: 'str-rep',
+      title: isAr
+        ? `أداء بيعي متميز لـ "${bestRep.name}"`
+        : `Top Sales Execution by "${bestRep.name}"`,
+      detail: isAr
+        ? `حقق أعلى حصيلة مبيعات بقيمة ${formatCurrency(bestRep.revenue, isAr)} (${bestRep.sharePercent}% من الإجمالي) عبر ${bestRep.count} عملية.`
+        : `Closed ${formatCurrency(bestRep.revenue, isAr)} (${bestRep.sharePercent}% of total volume) across ${bestRep.count} deals.`,
+      metric: formatCurrency(bestRep.revenue, isAr),
+    });
+  }
+
+  // --- 2. BUILD WEAKNESSES (نقاط الضعف والتحديات) ---
+  if (weakestCategory) {
+    weaknesses.push({
+      id: 'weak-cat',
+      title: isAr
+        ? `ضعف مساهمة فئة "${weakestCategory.name}" في المبيعات`
+        : `Underperforming Category: "${weakestCategory.name}"`,
+      detail: isAr
+        ? `لم تتجاوز مبيعات هذه الفئة ${formatCurrency(weakestCategory.revenue, isAr)} (${weakestCategory.sharePercent}% فقط من الإجمالي)، مما يشير إلى ضعف التسويق أو تسعير غير تنافسي.`
+        : `Contributes only ${weakestCategory.sharePercent}% (${formatCurrency(weakestCategory.revenue, isAr)}) of total sales.`,
+      metric: `${weakestCategory.sharePercent}%`,
+    });
+  }
+
+  if (weakestRegion) {
+    weaknesses.push({
+      id: 'weak-region',
+      title: isAr
+        ? `انخفاض الحصة السوقية في فرع/منطقة "${weakestRegion.name}"`
+        : `Low Market Penetration in "${weakestRegion.name}"`,
+      detail: isAr
+        ? `سجلت المنطقة أدنى مبيعات بقيمة ${formatCurrency(weakestRegion.revenue, isAr)} (${weakestRegion.sharePercent}% من الإجمالي) بفارق كبير عن المنطقة الأولى.`
+        : `Recorded lowest regional sales at ${formatCurrency(weakestRegion.revenue, isAr)} (${weakestRegion.sharePercent}% share).`,
+      metric: `${weakestRegion.sharePercent}%`,
+    });
+  }
+
+  if (delayedOrCancelledCount > 0) {
+    const delayRate = Math.round((delayedOrCancelledCount / rows.length) * 1000) / 10;
+    weaknesses.push({
+      id: 'weak-status',
+      title: isAr
+        ? `تأخر أو تعليق ${delayedOrCancelledCount} عملية بيعية (${delayRate}%)`
+        : `${delayedOrCancelledCount} Delayed or Pending Deals (${delayRate}%)`,
+      detail: isAr
+        ? `وجود عمليات غير مكتملة يعطل التدفق النقدي ويؤخر تحصيل الإيرادات في الوقت المحدد.`
+        : `Unfinished or delayed transactions slow down cash collection and revenue realization.`,
+      metric: `${delayRate}%`,
+    });
+  }
+
+  if (overallMarginPercent < 25 || lowMarginTransactions > 0) {
+    weaknesses.push({
+      id: 'weak-margin',
+      title: isAr
+        ? `تآكل هامش الربح في بعض الصفقات (${lowMarginTransactions} عملية منخفضة الربحية)`
+        : `Margin Compression in ${lowMarginTransactions} Transactions`,
+      detail: isAr
+        ? `ارتفاع التكاليف المباشرة أو منح خصومات مفرطة أدى لانخفاض هامش الربح في بعض المعاملات عن المستوى المستهدف.`
+        : `High direct costs or excessive discounting reduced profitability across ${lowMarginTransactions} records.`,
+      metric: `${lowMarginTransactions} ${isAr ? 'صفقة' : 'deals'}`,
+    });
+  }
+
+  if (topCategory && topCategory.sharePercent > 50) {
+    weaknesses.push({
+      id: 'weak-concentration',
+      title: isAr
+        ? `مخاطر تركز الإيرادات في فئة واحدة (${topCategory.sharePercent}%)`
+        : `High Revenue Concentration Risk (${topCategory.sharePercent}%)`,
+      detail: isAr
+        ? `الاعتماد المفرط على "${topCategory.name}" يجعل المبيعات عرضة لأي تقلبات موسمية في هذا القطاع.`
+        : `Over-reliance on "${topCategory.name}" exposes total revenue to seasonal or sector fluctuations.`,
+      metric: `${topCategory.sharePercent}%`,
+    });
+  }
+
+  // --- 3. BUILD ACTIONABLE RECOMMENDATIONS (مقترحات تحسين وزيادة المبيعات) ---
+  if (topCategory && weakestCategory) {
+    recommendations.push({
+      id: 'rec-bundling',
+      title: isAr
+        ? `تطبيق استراتيجية البيع المتقاطع (Cross-Selling & Bundling)`
+        : `Implement Cross-Selling & Product Bundling`,
+      actionPlan: isAr
+        ? `اربط عروض الفئة الأقل مبيعاً "${weakestCategory.name}" مع الفئة الرائدة "${topCategory.name}" في باقات موحدة بخصم تحفيزي لرفع قيمة الفاتورة المتوسطة.`
+        : `Bundle underperforming "${weakestCategory.name}" with top-selling "${topCategory.name}" to lift average order value.`,
+      expectedImpact: isAr ? '+15% إلى +22% في متوسط قيمة الصفقة' : '+15% to +22% in Average Order Value',
+      priority: 'high',
+    });
+  }
+
+  if (topRegion && weakestRegion) {
+    recommendations.push({
+      id: 'rec-regional',
+      title: isAr
+        ? `تنشيط المبيعات الجغرافية في "${weakestRegion.name}" ونقل تجربة "${topRegion.name}"`
+        : `Regional Growth Campaign in "${weakestRegion.name}"`,
+      actionPlan: isAr
+        ? `إطلاق حملة ترويجية موجهة وتكثيف الزيارات البيعية في "${weakestRegion.name}" مع تطبيق نفس المزيج البيعي الناجح في "${topRegion.name}".`
+        : `Launch targeted sales campaigns in "${weakestRegion.name}" replicating the winning playbook from "${topRegion.name}".`,
+      expectedImpact: isAr ? '+18% نمو متوقع في مبيعات الفروع الأقل' : '+18% Regional Revenue Lift',
+      priority: 'high',
+    });
+  }
+
+  if (delayedOrCancelledCount > 0) {
+    recommendations.push({
+      id: 'rec-pipeline',
+      title: isAr
+        ? `تسريع إغلاق وتحصيل الـ ${delayedOrCancelledCount} صفقة المعلقة والمتأخرة`
+        : `Fast-Track ${delayedOrCancelledCount} Pending & Delayed Deals`,
+      actionPlan: isAr
+        ? `تخصيص فريق متابعة فوري لحل المعوقات التشغيلية أو المالية للصفقات المتأخرة وتحويلها إلى مبيعات مكتملة ومحصّلة.`
+        : `Assign immediate follow-up owners to resolve bottlenecks on pending transactions and convert them to recognized revenue.`,
+      expectedImpact: isAr ? 'تحرير سيولة نقدية فورية ورفع نسبة الإنجاز' : 'Immediate Cash Flow Recovery',
+      priority: 'high',
+    });
+  }
+
+  recommendations.push({
+    id: 'rec-margin-opt',
+    title: isAr
+      ? `تحسين هيكل التسعير وتقليل التكاليف المباشرة لرفع هامش الربح`
+      : `Pricing Optimization & Cost Control`,
+    actionPlan: isAr
+      ? `مراجعة سياسة الخصومات على الصفقات ذات الهامش المنخفض، والتفاوض مع الموردين لخفض التكلفة بنسبة 5-8% مع التركيز على بيع الحلول الأعلى ربحية.`
+      : `Tighten discount thresholds on low-margin deals and renegotiate supplier costs by 5-8%.`,
+    expectedImpact: isAr ? '+4% إلى +7% زيادة في صافي الربح' : '+4% to +7% Net Margin Expansion',
+    priority: 'medium',
+  });
+
+  if (topClient) {
+    recommendations.push({
+      id: 'rec-vip',
+      title: isAr
+        ? `برنامج ولاء وتوسيع عقود كبار العملاء (VIP Key Accounts)`
+        : `VIP Account Expansion & Retention Program`,
+      actionPlan: isAr
+        ? `تقديم عقود سنوية طويلة الأجل ومزايا حصرية لأفضل العملاء (مثل "${topClient.name}") لضمان تكرار الشراء ورفع الحصة من ميزانيتهم.`
+        : `Offer annual volume agreements and priority support to top accounts like "${topClient.name}" to lock in recurring revenue.`,
+      expectedImpact: isAr ? '+25% زيادة في معدل الاحتفاظ وتكرار الشراء' : '+25% Customer Lifetime Value',
+      priority: 'medium',
+    });
+  }
+
+  return {
+    strengths,
+    weaknesses,
+    recommendations,
+    summaryMetrics: {
+      totalRevenue: Math.round(totalRevenue),
+      totalProfit: Math.round(totalProfit),
+      totalCost: Math.round(totalCost),
+      overallMarginPercent,
+      avgOrderValue,
+      topCategory: topCategory
+        ? { name: topCategory.name, revenue: topCategory.revenue, sharePercent: topCategory.sharePercent }
+        : null,
+      weakestCategory: weakestCategory
+        ? { name: weakestCategory.name, revenue: weakestCategory.revenue, sharePercent: weakestCategory.sharePercent }
+        : null,
+      topRegion: topRegion
+        ? { name: topRegion.name, revenue: topRegion.revenue, sharePercent: topRegion.sharePercent }
+        : null,
+      weakestRegion: weakestRegion
+        ? { name: weakestRegion.name, revenue: weakestRegion.revenue, sharePercent: weakestRegion.sharePercent }
+        : null,
+      topClient: topClient
+        ? { name: topClient.name, revenue: topClient.revenue, sharePercent: topClient.sharePercent }
+        : null,
+    },
+  };
+};
+
 

@@ -406,3 +406,171 @@ export const getSampleProjectsData = (lang: 'ar' | 'en'): WorkbookData => {
     uploadedAt: new Date(),
   };
 };
+
+export const getSampleInventoryData = (lang: 'ar' | 'en'): WorkbookData => {
+  const isAr = lang === 'ar';
+
+  const rows = [
+    {
+      [isAr ? 'كود الصنف (SKU)' : 'SKU']: 'INV-101',
+      [isAr ? 'اسم الصنف' : 'Item Name']: isAr ? 'آيفون 15 برو ماكس 256 جيجا' : 'iPhone 15 Pro Max 256GB',
+      [isAr ? 'القسم' : 'Category']: isAr ? 'الهواتف الذكية' : 'Smartphones',
+      [isAr ? 'الكمية المباعة' : 'Sold Qty']: 180,
+      [isAr ? 'المخزون الحالي' : 'Current Stock']: 14,
+      [isAr ? 'قيمة المبيعات' : 'Revenue']: 900000,
+      [isAr ? 'التكلفة' : 'Cost']: 666000,
+      [isAr ? 'صافي الربح' : 'Profit']: 234000,
+    },
+    {
+      [isAr ? 'كود الصنف (SKU)' : 'SKU']: 'INV-102',
+      [isAr ? 'اسم الصنف' : 'Item Name']: isAr ? 'ماك بوك برو M3 ماكس' : 'MacBook Pro M3 Max',
+      [isAr ? 'القسم' : 'Category']: isAr ? 'أجهزة الحاسب' : 'Computers & Laptops',
+      [isAr ? 'الكمية المباعة' : 'Sold Qty']: 130,
+      [isAr ? 'المخزون الحالي' : 'Current Stock']: 6,
+      [isAr ? 'قيمة المبيعات' : 'Revenue']: 1040000,
+      [isAr ? 'التكلفة' : 'Cost']: 728000,
+      [isAr ? 'صافي الربح' : 'Profit']: 312000,
+    },
+    {
+      [isAr ? 'كود الصنف (SKU)' : 'SKU']: 'INV-103',
+      [isAr ? 'اسم الصنف' : 'Item Name']: isAr ? 'سماعات آبل إيربودز برو 2' : 'Apple AirPods Pro 2',
+      [isAr ? 'القسم' : 'Category']: isAr ? 'الصوتيات والملحقات' : 'Audio & Accessories',
+      [isAr ? 'الكمية المباعة' : 'Sold Qty']: 300,
+      [isAr ? 'المخزون الحالي' : 'Current Stock']: 11,
+      [isAr ? 'قيمة المبيعات' : 'Revenue']: 300000,
+      [isAr ? 'التكلفة' : 'Cost']: 180000,
+      [isAr ? 'صافي الربح' : 'Profit']: 120000,
+    },
+    {
+      [isAr ? 'كود الصنف (SKU)' : 'SKU']: 'INV-104',
+      [isAr ? 'اسم الصنف' : 'Item Name']: isAr ? 'سامسونج جالكسي S24 ألترا' : 'Samsung Galaxy S24 Ultra',
+      [isAr ? 'القسم' : 'Category']: isAr ? 'الهواتف الذكية' : 'Smartphones',
+      [isAr ? 'الكمية المباعة' : 'Sold Qty']: 110,
+      [isAr ? 'المخزون الحالي' : 'Current Stock']: 10,
+      [isAr ? 'قيمة المبيعات' : 'Revenue']: 495000,
+      [isAr ? 'التكلفة' : 'Cost']: 346500,
+      [isAr ? 'صافي الربح' : 'Profit']: 148500,
+    },
+    {
+      [isAr ? 'كود الصنف (SKU)' : 'SKU']: 'INV-105',
+      [isAr ? 'اسم الصنف' : 'Item Name']: isAr ? 'لابتوب ديل إكس بي إس 15' : 'Dell XPS 15 Laptop',
+      [isAr ? 'القسم' : 'Category']: isAr ? 'أجهزة الحاسب' : 'Computers & Laptops',
+      [isAr ? 'الكمية المباعة' : 'Sold Qty']: 100,
+      [isAr ? 'المخزون الحالي' : 'Current Stock']: 9,
+      [isAr ? 'قيمة المبيعات' : 'Revenue']: 500000,
+      [isAr ? 'التكلفة' : 'Cost']: 350000,
+      [isAr ? 'صافي الربح' : 'Profit']: 150000,
+    },
+    {
+      [isAr ? 'كود الصنف (SKU)' : 'SKU']: 'INV-106',
+      [isAr ? 'اسم الصنف' : 'Item Name']: isAr ? 'آيباد إير الجيل الخامس' : 'iPad Air 5th Gen',
+      [isAr ? 'القسم' : 'Category']: isAr ? 'الأجهزة اللوحية' : 'Tablets',
+      [isAr ? 'الكمية المباعة' : 'Sold Qty']: 42,
+      [isAr ? 'المخزون الحالي' : 'Current Stock']: 19,
+      [isAr ? 'قيمة المبيعات' : 'Revenue']: 126000,
+      [isAr ? 'التكلفة' : 'Cost']: 88200,
+      [isAr ? 'صافي الربح' : 'Profit']: 37800,
+    },
+    {
+      [isAr ? 'كود الصنف (SKU)' : 'SKU']: 'INV-107',
+      [isAr ? 'اسم الصنف' : 'Item Name']: isAr ? 'راوتر سيسكو للأعمال Wi-Fi 6' : 'Cisco Business Wi-Fi 6 Router',
+      [isAr ? 'القسم' : 'Category']: isAr ? 'الشبكات والاتصالات' : 'Networking',
+      [isAr ? 'الكمية المباعة' : 'Sold Qty']: 35,
+      [isAr ? 'المخزون الحالي' : 'Current Stock']: 22,
+      [isAr ? 'قيمة المبيعات' : 'Revenue']: 70000,
+      [isAr ? 'التكلفة' : 'Cost']: 45500,
+      [isAr ? 'صافي الربح' : 'Profit']: 24500,
+    },
+    {
+      [isAr ? 'كود الصنف (SKU)' : 'SKU']: 'INV-108',
+      [isAr ? 'اسم الصنف' : 'Item Name']: isAr ? 'شاشة سامسونج أوديسي 32 بوصة' : 'Samsung Odyssey 32" Monitor',
+      [isAr ? 'القسم' : 'Category']: isAr ? 'الشاشات والملحقات' : 'Monitors & Accessories',
+      [isAr ? 'الكمية المباعة' : 'Sold Qty']: 30,
+      [isAr ? 'المخزون الحالي' : 'Current Stock']: 25,
+      [isAr ? 'قيمة المبيعات' : 'Revenue']: 75000,
+      [isAr ? 'التكلفة' : 'Cost']: 52500,
+      [isAr ? 'صافي الربح' : 'Profit']: 22500,
+    },
+    {
+      [isAr ? 'كود الصنف (SKU)' : 'SKU']: 'INV-109',
+      [isAr ? 'اسم الصنف' : 'Item Name']: isAr ? 'كاميرا مراقبة ذكية 4K' : '4K Smart Security Camera',
+      [isAr ? 'القسم' : 'Category']: isAr ? 'الأنظمة الأمنية' : 'Security Systems',
+      [isAr ? 'الكمية المباعة' : 'Sold Qty']: 18,
+      [isAr ? 'المخزون الحالي' : 'Current Stock']: 55,
+      [isAr ? 'قيمة المبيعات' : 'Revenue']: 27000,
+      [isAr ? 'التكلفة' : 'Cost']: 18900,
+      [isAr ? 'صافي الربح' : 'Profit']: 8100,
+    },
+    {
+      [isAr ? 'كود الصنف (SKU)' : 'SKU']: 'INV-110',
+      [isAr ? 'اسم الصنف' : 'Item Name']: isAr ? 'طابعة ليزر إتش بي ملونة' : 'HP Color LaserJet Printer',
+      [isAr ? 'القسم' : 'Category']: isAr ? 'معدات المكاتب' : 'Office Equipment',
+      [isAr ? 'الكمية المباعة' : 'Sold Qty']: 12,
+      [isAr ? 'المخزون الحالي' : 'Current Stock']: 40,
+      [isAr ? 'قيمة المبيعات' : 'Revenue']: 36000,
+      [isAr ? 'التكلفة' : 'Cost']: 27000,
+      [isAr ? 'صافي الربح' : 'Profit']: 9000,
+    },
+    {
+      [isAr ? 'كود الصنف (SKU)' : 'SKU']: 'INV-111',
+      [isAr ? 'اسم الصنف' : 'Item Name']: isAr ? 'لوحة مفاتيح ميكانيكية لوجيتك' : 'Logitech Mechanical Keyboard',
+      [isAr ? 'القسم' : 'Category']: isAr ? 'الشاشات والملحقات' : 'Monitors & Accessories',
+      [isAr ? 'الكمية المباعة' : 'Sold Qty']: 8,
+      [isAr ? 'المخزون الحالي' : 'Current Stock']: 65,
+      [isAr ? 'قيمة المبيعات' : 'Revenue']: 5600,
+      [isAr ? 'التكلفة' : 'Cost']: 3900,
+      [isAr ? 'صافي الربح' : 'Profit']: 1700,
+    },
+  ];
+
+  const headers = Object.keys(rows[0]);
+  const sheetName = isAr ? 'جرد وحركة الأصناف والمخزون' : 'Inventory & SKU Velocity';
+
+  return {
+    fileName: isAr ? 'شيت_جرد_وحركة_المخزون_والأصناف.xlsx' : 'inventory_sku_velocity_sheet.xlsx',
+    sheetNames: [sheetName],
+    activeSheet: sheetName,
+    sheets: {
+      [sheetName]: {
+        name: sheetName,
+        headers,
+        rows,
+        columns: headers.map((h) => {
+          const isNumeric =
+            h.includes('مبيعات') ||
+            h.includes('Revenue') ||
+            h.includes('التكلفة') ||
+            h.includes('Cost') ||
+            h.includes('ربح') ||
+            h.includes('Profit') ||
+            h.includes('الكمية') ||
+            h.includes('Qty') ||
+            h.includes('المخزون') ||
+            h.includes('Stock');
+          const numVals = isNumeric ? rows.map((r) => Number(r[h]) || 0) : [];
+          const sum = numVals.reduce((a, b) => a + b, 0);
+
+          return {
+            name: h,
+            type: isNumeric ? 'number' : 'string',
+            sampleValues: [rows[0][h]],
+            uniqueCount: new Set(rows.map((r) => r[h])).size,
+            hasNulls: false,
+            ...(isNumeric && numVals.length > 0
+              ? {
+                  min: Math.min(...numVals),
+                  max: Math.max(...numVals),
+                  sum,
+                  avg: sum / numVals.length,
+                }
+              : {}),
+          };
+        }),
+        rowCount: rows.length,
+      },
+    },
+    fileSize: 24800,
+    uploadedAt: new Date(),
+  };
+};
+
