@@ -10,6 +10,56 @@ import {
 } from '../types';
 import { parseDateValue } from './excelParser';
 
+export const parseCleanNumber = (val: any): number => {
+  if (val === null || val === undefined || val === '') return 0;
+  if (typeof val === 'number') return isNaN(val) ? 0 : val;
+  const cleaned = String(val).replace(/[^0-9.-]+/g, '');
+  const parsed = parseFloat(cleaned);
+  return isNaN(parsed) ? 0 : parsed;
+};
+
+export const isUnitPriceColumn = (colName?: string): boolean => {
+  if (!colName) return false;
+  const name = colName.toLowerCase();
+  return (
+    name.includes('سعر البيع') ||
+    name.includes('سعر_البيع') ||
+    name.includes('سعر الحبة') ||
+    name.includes('سعر الوحدة') ||
+    name.includes('سعر_الوحدة') ||
+    name.includes('سعر القطعة') ||
+    name.includes('سعر المفرد') ||
+    name.includes('سعر التجزئة') ||
+    name.includes('unit price') ||
+    name.includes('unit_price') ||
+    name.includes('unitprice') ||
+    name.includes('item price') ||
+    name.includes('piece price') ||
+    name.includes('retail price') ||
+    (name.includes('سعر') && !name.includes('إجمالي') && !name.includes('اجمالي') && !name.includes('مجموع')) ||
+    (name.includes('price') && !name.includes('total') && !name.includes('gross') && !name.includes('sum'))
+  );
+};
+
+export const isUnitCostColumn = (colName?: string): boolean => {
+  if (!colName) return false;
+  const name = colName.toLowerCase();
+  return (
+    name.includes('سعر التكلفة') ||
+    name.includes('تكلفة الحبة') ||
+    name.includes('تكلفة الوحدة') ||
+    name.includes('تكلفة_الوحدة') ||
+    name.includes('سعر الشراء') ||
+    name.includes('تكلفة القطعة') ||
+    name.includes('unit cost') ||
+    name.includes('unit_cost') ||
+    name.includes('unitcost') ||
+    name.includes('item cost') ||
+    name.includes('purchase price') ||
+    name.includes('buy price')
+  );
+};
+
 export const computeKpiMetrics = (
   sheet: SheetData,
   lang: 'ar' | 'en',
@@ -88,52 +138,108 @@ export const computeKpiMetrics = (
 
   const kpis: KpiMetric[] = [];
 
+  const isRevUnitPrice =
+    salesMapping?.revenueType === 'unit_price' ||
+    (salesMapping?.revenueType === undefined && revenueCol ? isUnitPriceColumn(revenueCol.name) : false);
+
+  const isCostUnitCost =
+    salesMapping?.costType === 'unit_cost' ||
+    (salesMapping?.costType === undefined && costCol ? isUnitCostColumn(costCol.name) : false);
+
+  let calculatedRevenue = revenueCol?.sum ?? 0;
+  if (revenueCol && isRevUnitPrice) {
+    calculatedRevenue = rows.reduce((acc, row) => {
+      const q = salesMapping?.qtyCol ? parseCleanNumber(row[salesMapping.qtyCol]) : 1;
+      return acc + parseCleanNumber(row[revenueCol.name]) * q;
+    }, 0);
+  }
+
+  let calculatedCost = costCol?.sum ?? 0;
+  if (costCol && isCostUnitCost) {
+    calculatedCost = rows.reduce((acc, row) => {
+      const q = salesMapping?.qtyCol ? parseCleanNumber(row[salesMapping.qtyCol]) : 1;
+      return acc + parseCleanNumber(row[costCol.name]) * q;
+    }, 0);
+  }
+
+  const hasExplicitProfit = Boolean(profitCol && profitCol.sum !== undefined);
+  const calculatedProfit = hasExplicitProfit
+    ? (profitCol?.sum ?? 0)
+    : costCol && calculatedRevenue > 0
+    ? calculatedRevenue - calculatedCost
+    : calculatedRevenue * 0.25;
+
   // 1. Primary Volume / Revenue KPI
-  if (revenueCol && revenueCol.sum !== undefined) {
+  if (revenueCol && (revenueCol.sum !== undefined || calculatedRevenue > 0)) {
     kpis.push({
       id: 'revenue',
-      title: isAr ? `إجمالي ${revenueCol.name}` : `Total ${revenueCol.name}`,
+      title: isAr
+        ? isRevUnitPrice
+          ? `إجمالي المبيعات (سعر الحبة × الكمية)`
+          : `إجمالي ${revenueCol.name}`
+        : `Total ${revenueCol.name}`,
       titleEn: `Total ${revenueCol.name}`,
-      value: revenueCol.sum,
-      formattedValue: formatCurrency(revenueCol.sum, isAr),
+      value: calculatedRevenue,
+      formattedValue: formatCurrency(calculatedRevenue, isAr),
       changePercent: 12.4,
       trend: 'up',
       color: 'emerald',
       icon: 'TrendingUp',
-      subtitle: isAr ? `متوسط السجل: ${formatCurrency(revenueCol.avg || 0, isAr)}` : `Avg: ${formatCurrency(revenueCol.avg || 0, isAr)}`,
-      sparkline: rows.slice(0, 8).map((r) => Number(r[revenueCol.name]) || 0),
+      subtitle: isAr
+        ? `متوسط المعاملة: ${formatCurrency(rows.length > 0 ? calculatedRevenue / rows.length : 0, isAr)}`
+        : `Avg: ${formatCurrency(rows.length > 0 ? calculatedRevenue / rows.length : 0, isAr)}`,
+      sparkline: rows.slice(0, 8).map((r) => {
+        const q = isRevUnitPrice && salesMapping?.qtyCol ? parseCleanNumber(r[salesMapping.qtyCol]) : 1;
+        return (Number(r[revenueCol.name]) || 0) * (isRevUnitPrice ? q : 1);
+      }),
     });
   }
 
   // 2. Profit or Secondary Metric KPI
-  if (profitCol && profitCol.sum !== undefined) {
-    const margin = revenueCol?.sum ? ((profitCol.sum / revenueCol.sum) * 100).toFixed(1) : undefined;
+  if (hasExplicitProfit || (costCol && (costCol.sum !== undefined || calculatedCost > 0))) {
+    const margin = calculatedRevenue > 0 ? ((calculatedProfit / calculatedRevenue) * 100).toFixed(1) : undefined;
     kpis.push({
       id: 'profit',
-      title: isAr ? `صافي ${profitCol.name}` : `Net ${profitCol.name}`,
-      titleEn: `Net ${profitCol.name}`,
-      value: profitCol.sum,
-      formattedValue: formatCurrency(profitCol.sum, isAr),
+      title: isAr
+        ? hasExplicitProfit
+          ? `صافي ${profitCol?.name}`
+          : 'صافي الأرباح المحققة'
+        : `Net Profit`,
+      titleEn: `Net Profit`,
+      value: calculatedProfit,
+      formattedValue: formatCurrency(calculatedProfit, isAr),
       changePercent: 8.7,
       trend: 'up',
       color: 'blue',
       icon: 'DollarSign',
       subtitle: margin ? (isAr ? `هامش ربح تقريبي: ${margin}%` : `Approx margin: ${margin}%`) : undefined,
-      sparkline: rows.slice(0, 8).map((r) => Number(r[profitCol.name]) || 0),
+      sparkline: rows.slice(0, 8).map((r) => {
+        const q = salesMapping?.qtyCol ? parseCleanNumber(r[salesMapping.qtyCol]) : 1;
+        const rev = (Number(r[revenueCol?.name || '']) || 0) * (isRevUnitPrice ? q : 1);
+        const cost = (Number(r[costCol?.name || '']) || 0) * (isCostUnitCost ? q : 1);
+        return profitCol ? Number(r[profitCol.name]) || 0 : rev - cost;
+      }),
     });
   } else if (costCol && costCol.sum !== undefined) {
     kpis.push({
       id: 'cost',
-      title: isAr ? `إجمالي ${costCol.name}` : `Total ${costCol.name}`,
+      title: isAr
+        ? isCostUnitCost
+          ? `إجمالي التكلفة (سعر التكلفة × الكمية)`
+          : `إجمالي ${costCol.name}`
+        : `Total ${costCol.name}`,
       titleEn: `Total ${costCol.name}`,
-      value: costCol.sum,
-      formattedValue: formatCurrency(costCol.sum, isAr),
+      value: calculatedCost,
+      formattedValue: formatCurrency(calculatedCost, isAr),
       changePercent: -4.2,
       trend: 'down',
       color: 'amber',
       icon: 'Receipt',
       subtitle: isAr ? `تحت السيطرة والموازنة` : `Within allocated budget`,
-      sparkline: rows.slice(0, 8).map((r) => Number(r[costCol.name]) || 0),
+      sparkline: rows.slice(0, 8).map((r) => {
+        const q = isCostUnitCost && salesMapping?.qtyCol ? parseCleanNumber(r[salesMapping.qtyCol]) : 1;
+        return (Number(r[costCol.name]) || 0) * (isCostUnitCost ? q : 1);
+      }),
     });
   }
 
@@ -599,24 +705,21 @@ export const autoDetectProductMapping = (columns: ColumnInfo[]): ProductColumnMa
     columns.find((c) => c.type === 'date')?.name ||
     '';
 
+  const isRevUnit = isUnitPriceColumn(revenueCol);
+  const isCostUnit = isUnitCostColumn(costCol);
+
   return {
     itemNameCol,
     categoryCol,
     soldQtyCol,
     currentStockCol,
     revenueCol,
+    revenueType: isRevUnit ? 'unit_price' : 'total',
     costCol,
+    costType: isCostUnit ? 'unit_cost' : 'total',
     profitCol,
     dateCol,
   };
-};
-
-const parseCleanNumber = (val: any): number => {
-  if (val === null || val === undefined || val === '') return 0;
-  if (typeof val === 'number') return isNaN(val) ? 0 : val;
-  const cleaned = String(val).replace(/[^0-9.-]+/g, '');
-  const parsed = parseFloat(cleaned);
-  return isNaN(parsed) ? 0 : parsed;
 };
 
 /**
@@ -734,6 +837,15 @@ export const analyzeProductsAndInventory = (
     }
   >();
 
+  // Check whether revenue and cost columns represent Unit Prices or Totals
+  const isRevUnitPrice =
+    mapping.revenueType === 'unit_price' ||
+    (mapping.revenueType === undefined && mapping.revenueCol ? isUnitPriceColumn(mapping.revenueCol) : false);
+
+  const isCostUnitCost =
+    mapping.costType === 'unit_cost' ||
+    (mapping.costType === undefined && mapping.costCol ? isUnitCostColumn(mapping.costCol) : false);
+
   filteredRows.forEach((row) => {
     const rawName = mapping.itemNameCol ? row[mapping.itemNameCol] : null;
     const itemName = rawName !== null && rawName !== undefined && String(rawName).trim() !== ''
@@ -748,12 +860,14 @@ export const analyzeProductsAndInventory = (
     // If Sold Quantity column is mapped, sum it; otherwise each transaction row counts as 1 unit
     const qty = mapping.soldQtyCol ? parseCleanNumber(row[mapping.soldQtyCol]) : 1;
 
-    // Revenue
-    const rev = mapping.revenueCol ? parseCleanNumber(row[mapping.revenueCol]) : 0;
+    // Revenue: if mapped column is unit selling price, multiply by sold quantity; otherwise take total revenue directly
+    const rawRev = mapping.revenueCol ? parseCleanNumber(row[mapping.revenueCol]) : 0;
+    const rev = isRevUnitPrice ? rawRev * qty : rawRev;
 
-    // Cost
+    // Cost: if mapped column is unit cost, multiply by sold quantity; otherwise take total cost directly
     const hasCost = Boolean(mapping.costCol && row[mapping.costCol] !== null && row[mapping.costCol] !== undefined && row[mapping.costCol] !== '');
-    const cost = hasCost ? parseCleanNumber(row[mapping.costCol]) : 0;
+    const rawCost = hasCost ? parseCleanNumber(row[mapping.costCol]) : 0;
+    const cost = hasCost ? (isCostUnitCost ? rawCost * qty : rawCost) : 0;
 
     // Profit
     const hasProfit = Boolean(mapping.profitCol && row[mapping.profitCol] !== null && row[mapping.profitCol] !== undefined && row[mapping.profitCol] !== '');
@@ -1085,10 +1199,15 @@ export const autoDetectSalesMapping = (columns: ColumnInfo[]): SalesColumnMappin
     columns.find((c) => c.type === 'status')?.name ||
     '';
 
+  const isRevUnit = isUnitPriceColumn(revenueCol);
+  const isCostUnit = isUnitCostColumn(costCol);
+
   return {
     revenueCol,
-    profitCol,
+    revenueType: isRevUnit ? 'unit_price' : 'total',
     costCol,
+    costType: isCostUnit ? 'unit_cost' : 'total',
+    profitCol,
     qtyCol,
     categoryCol,
     regionCol,
@@ -1127,10 +1246,23 @@ export const analyzeSalesStrengthsWeaknessesAndTips = (
   let delayedOrCancelledCount = 0;
   let lowMarginTransactions = 0;
 
+  const isRevUnitPrice =
+    mapping.revenueType === 'unit_price' ||
+    (mapping.revenueType === undefined && mapping.revenueCol ? isUnitPriceColumn(mapping.revenueCol) : false);
+
+  const isCostUnitCost =
+    mapping.costType === 'unit_cost' ||
+    (mapping.costType === undefined && mapping.costCol ? isUnitCostColumn(mapping.costCol) : false);
+
   rows.forEach((row) => {
-    const rev = mapping.revenueCol ? parseCleanNumber(row[mapping.revenueCol]) : 0;
+    const qty = mapping.qtyCol ? parseCleanNumber(row[mapping.qtyCol]) : 1;
+    const rawRev = mapping.revenueCol ? parseCleanNumber(row[mapping.revenueCol]) : 0;
+    const rev = isRevUnitPrice ? rawRev * qty : rawRev;
+
     const hasCost = Boolean(mapping.costCol && row[mapping.costCol] !== null && row[mapping.costCol] !== undefined && row[mapping.costCol] !== '');
-    const cost = hasCost ? parseCleanNumber(row[mapping.costCol]) : 0;
+    const rawCost = hasCost ? parseCleanNumber(row[mapping.costCol]) : 0;
+    const cost = hasCost ? (isCostUnitCost ? rawCost * qty : rawCost) : 0;
+
     const hasProfit = Boolean(mapping.profitCol && row[mapping.profitCol] !== null && row[mapping.profitCol] !== undefined && row[mapping.profitCol] !== '');
     const profit = hasProfit
       ? parseCleanNumber(row[mapping.profitCol])

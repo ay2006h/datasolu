@@ -4,8 +4,10 @@ export type AppMode = 'home' | 'sales' | 'inventory';
 
 export interface SalesColumnMapping {
   revenueCol: string;
+  revenueType?: 'total' | 'unit_price'; // 'total' = Total sales value, 'unit_price' = Unit selling price * Quantity
   profitCol: string;
   costCol: string;
+  costType?: 'total' | 'unit_cost'; // 'total' = Total cost, 'unit_cost' = Unit cost price * Quantity
   qtyCol: string;
   categoryCol: string;
   regionCol: string;
@@ -154,7 +156,9 @@ export interface ProductColumnMapping {
   soldQtyCol: string;
   currentStockCol: string;
   revenueCol: string;
+  revenueType?: 'total' | 'unit_price'; // 'total' = Total sales value, 'unit_price' = Unit selling price * Sold Quantity
   costCol: string;
+  costType?: 'total' | 'unit_cost'; // 'total' = Total cost, 'unit_cost' = Unit cost price * Sold Quantity
   profitCol: string;
   dateCol: string;
 }

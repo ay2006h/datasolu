@@ -44,7 +44,10 @@ import {
   autoDetectProductMapping,
   analyzeProductsAndInventory,
   formatCurrency,
+  isUnitPriceColumn,
+  isUnitCostColumn,
 } from '../utils/analyticsEngine';
+import { ColumnInfoTooltip } from './ColumnInfoTooltip';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -493,11 +496,27 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
           {/* Mapping Grid: Item, Category, Quantities, Financials, Date */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* 1. Item Name Column */}
-            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/80 space-y-1.5">
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/80 space-y-1.5 relative">
               <label className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-200">
                 <span className="flex items-center gap-1.5">
                   <Package className="w-3.5 h-3.5 text-indigo-500" />
-                  {isAr ? 'عمود اسم الصنف / المنتج *' : 'Item / Product Name *'}
+                  <span>{isAr ? 'عمود اسم الصنف / المنتج *' : 'Item / Product Name *'}</span>
+                  <ColumnInfoTooltip
+                    title={isAr ? 'عمود اسم الصنف / المنتج' : 'Item / Product Name Column'}
+                    description={
+                      isAr
+                        ? 'العمود الذي يحتوي على اسم الصنف أو المنتج أو كود التخزين (SKU/Barcode) لتمييز كل منتج وتحليل سحبه بدقة.'
+                        : 'The column containing the unique product name, item title, or SKU.'
+                    }
+                    examples={['اسم الصنف', 'المنتج', 'كود الصنف', 'Item Name', 'Product', 'SKU', 'Description']}
+                    impact={
+                      isAr
+                        ? 'ركيزة تحليل المخزون؛ وبدونه لا يمكن تجميع السحب لكل منتج أو تصنيف حركته (سريع/متوسط/راكد).'
+                        : 'Core inventory key; groups velocity, ABC classification, and restock urgencies.'
+                    }
+                    required={true}
+                    isAr={isAr}
+                  />
                 </span>
                 <span className="text-[10px] text-rose-500 font-extrabold">
                   {isAr ? 'أساسي' : 'Required'}
@@ -517,11 +536,27 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
             </div>
 
             {/* 2. Category / Department Column */}
-            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/80 space-y-1.5">
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/80 space-y-1.5 relative">
               <label className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-200">
                 <span className="flex items-center gap-1.5">
                   <Layers className="w-3.5 h-3.5 text-purple-500" />
-                  {isAr ? 'عمود القسم / الفئة' : 'Department / Category'}
+                  <span>{isAr ? 'عمود القسم / الفئة' : 'Department / Category'}</span>
+                  <ColumnInfoTooltip
+                    title={isAr ? 'عمود القسم أو الفئة' : 'Department / Category Column'}
+                    description={
+                      isAr
+                        ? 'العمود الذي يحدد قسم الصنف أو العائلة السلعية للمنتجات لتجميع الأصناف وتحليل أقسام المخزون.'
+                        : 'The column representing product department, category, or product family.'
+                    }
+                    examples={['القسم', 'الفئة', 'التصنيف', 'المجموعة', 'Category', 'Department', 'Group']}
+                    impact={
+                      isAr
+                        ? 'إمكانية فلترة وتحليل المخزون حسب الأقسام، ومعرفة الأقسام التي تحتجز سيولة في بضائع راكدة.'
+                        : 'Enables category-based filtering and reveals tied-up capital by department.'
+                    }
+                    required={false}
+                    isAr={isAr}
+                  />
                 </span>
                 <span className="text-[10px] text-slate-400">
                   {isAr ? 'اختياري' : 'Optional'}
@@ -542,11 +577,27 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
             </div>
 
             {/* 3. Sold Quantity Column */}
-            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/80 space-y-1.5">
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/80 space-y-1.5 relative">
               <label className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-200">
                 <span className="flex items-center gap-1.5">
                   <ShoppingCart className="w-3.5 h-3.5 text-emerald-500" />
-                  {isAr ? 'عمود الكمية المباعة' : 'Sold Quantity Column'}
+                  <span>{isAr ? 'عمود الكمية المباعة' : 'Sold Quantity Column'}</span>
+                  <ColumnInfoTooltip
+                    title={isAr ? 'عمود الكمية المباعة' : 'Sold Quantity Column'}
+                    description={
+                      isAr
+                        ? 'العمود الذي يحتوي على عدد الوحدات المباعة من هذا الصنف. إذا تُرك فارغاً سيتم اعتبار كل صف كعملية بيع واحدة (1 وحدة).'
+                        : 'The number of units sold for each item. Defaults to 1 per row if unselected.'
+                    }
+                    examples={['الكمية المباعة', 'عدد القطع', 'الكمية', 'Sold Qty', 'Quantity', 'Units Sold', 'Out Qty']}
+                    impact={
+                      isAr
+                        ? 'حساب معدل السحب اليومي (Daily Run Rate)، وتصنيف سرعة الحركة (سريع، متوسط، راكد).'
+                        : 'Calculates daily run rate and determines fast-moving vs dead stock velocity.'
+                    }
+                    required={false}
+                    isAr={isAr}
+                  />
                 </span>
                 <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
                   {isAr ? 'كميات' : 'Quantity'}
@@ -569,11 +620,28 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
             </div>
 
             {/* 4. Current Stock / Inventory Column */}
-            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/80 space-y-1.5">
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/80 space-y-1.5 relative">
               <label className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-200">
                 <span className="flex items-center gap-1.5">
                   <Package className="w-3.5 h-3.5 text-amber-500" />
-                  {isAr ? 'عمود المخزون الحالي / الرصيد' : 'Current Stock / Balance'}
+                  <span>{isAr ? 'عمود المخزون الحالي / الرصيد' : 'Current Stock / Balance'}</span>
+                  <ColumnInfoTooltip
+                    title={isAr ? 'عمود المخزون الحالي / الرصيد' : 'Current Stock / Balance Column'}
+                    description={
+                      isAr
+                        ? 'العمود الذي يحتوي على رصيد المخزون المتوفر فعلياً في المستودع الآن. إذا لم يتوفر، سيقترح النظام الطلبيات حسب معدل السحب فقط.'
+                        : 'Current on-hand warehouse inventory balance. If omitted, restock relies on daily velocity.'
+                    }
+                    examples={['المخزون الحالي', 'الرصيد', 'رصيد المستودع', 'Current Stock', 'On Hand', 'Balance', 'Stock']}
+                    impact={
+                      isAr
+                        ? 'العمود الجوهري لحساب "الأيام المتبقية قبل النفاد"، وإطلاق تنبيهات الخطر وقرارات الشراء العاجلة.'
+                        : 'Calculates days of inventory left, low-stock warnings, and purchase recommendations.'
+                    }
+                    required={false}
+                    isAr={isAr}
+                    align="end"
+                  />
                 </span>
                 <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">
                   {isAr ? 'مخزون' : 'Inventory'}
@@ -596,11 +664,27 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
             </div>
 
             {/* 5. Financial: Sales / Revenue Column */}
-            <div className="p-3.5 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-800/50 space-y-1.5">
+            <div className="p-3.5 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-800/50 space-y-1.5 relative">
               <label className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-200">
                 <span className="flex items-center gap-1.5">
                   <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
-                  {isAr ? 'عمود قيمة المبيعات / الإيراد' : 'Sales / Revenue Column'}
+                  <span>{isAr ? 'عمود قيمة المبيعات / الإيراد' : 'Sales / Revenue Column'}</span>
+                  <ColumnInfoTooltip
+                    title={isAr ? 'عمود قيمة المبيعات أو سعر البيع' : 'Sales Revenue / Unit Price Column'}
+                    description={
+                      isAr
+                        ? 'العمود الذي يحتوي على إجمالي المبيعات أو سعر بيع الحبة الواحدة. يمكنك التبديل أدناه بين (إجمالي المبيعات) أو (سعر بيع الحبة الواحدة) ليقوم النظام بضربه في الكمية المباعة تلقائياً واحتساب إجمالي المبيعات والأرباح بدقة.'
+                        : 'Total sales value or unit selling price. Toggle below to calculate total sales as (Unit Price × Sold Qty) automatically.'
+                    }
+                    examples={['إجمالي المبيعات', 'سعر البيع', 'سعر الحبة', 'المبلغ', 'القيمة', 'Revenue', 'Sales', 'Unit Price']}
+                    impact={
+                      isAr
+                        ? 'تطبيق تحليل باريتو (80/20) ومعرفة حصة كل منتج من إجمالي إيرادات المؤسسة.'
+                        : 'Enables Pareto 80/20 revenue concentration analysis and revenue share.'
+                    }
+                    required={false}
+                    isAr={isAr}
+                  />
                 </span>
                 <span className="text-[10px] text-emerald-600 font-bold">
                   {isAr ? 'مالي' : 'Financial'}
@@ -608,7 +692,14 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
               </label>
               <select
                 value={mapping.revenueCol}
-                onChange={(e) => setMapping({ ...mapping, revenueCol: e.target.value })}
+                onChange={(e) => {
+                  const col = e.target.value;
+                  setMapping({
+                    ...mapping,
+                    revenueCol: col,
+                    revenueType: isUnitPriceColumn(col) ? 'unit_price' : mapping.revenueType || 'total',
+                  });
+                }}
                 className="w-full text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500"
               >
                 <option value="">{isAr ? '-- غير محدد --' : '-- None --'}</option>
@@ -618,14 +709,76 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
                   </option>
                 ))}
               </select>
+
+              {/* Unit Selling Price vs Total Sales Toggle */}
+              {mapping.revenueCol && (
+                <div className="pt-1.5 border-t border-emerald-200/60 dark:border-emerald-800/40">
+                  <div className="flex items-center justify-between text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                    <span>{isAr ? 'نوع القيمة بالعمود:' : 'Data type:'}</span>
+                    {mapping.revenueType === 'unit_price' && (
+                      <span className="text-emerald-600 dark:text-emerald-400 font-extrabold flex items-center gap-0.5">
+                        <span>×</span>
+                        <span>{isAr ? 'الكمية المباعة' : 'Sold Qty'}</span>
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-1 p-0.5 bg-white/90 dark:bg-slate-900/90 rounded-lg border border-emerald-200/70 dark:border-emerald-800/60">
+                    <button
+                      type="button"
+                      onClick={() => setMapping({ ...mapping, revenueType: 'total' })}
+                      className={`text-[10px] font-bold py-1 px-1.5 rounded-md transition-all text-center ${
+                        mapping.revenueType !== 'unit_price'
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      {isAr ? 'إجمالي المبيعات' : 'Total Sales'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMapping({ ...mapping, revenueType: 'unit_price' })}
+                      className={`text-[10px] font-bold py-1 px-1.5 rounded-md transition-all text-center ${
+                        mapping.revenueType === 'unit_price'
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      {isAr ? 'سعر الحبة × الكمية' : 'Unit Price × Qty'}
+                    </button>
+                  </div>
+                  {mapping.revenueType === 'unit_price' && (
+                    <p className="text-[10px] text-emerald-700 dark:text-emerald-300 mt-1 leading-tight">
+                      {isAr
+                        ? '💡 يُحسب الإجمالي = (سعر الحبة × الكمية المباعة)'
+                        : '💡 Auto-calculated = (Unit Price × Sold Qty)'}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* 6. Financial: Cost Column */}
-            <div className="p-3.5 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-800/50 space-y-1.5">
+            <div className="p-3.5 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-800/50 space-y-1.5 relative">
               <label className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-200">
                 <span className="flex items-center gap-1.5">
                   <DollarSign className="w-3.5 h-3.5 text-rose-500" />
-                  {isAr ? 'عمود التكلفة (لحساب الربح)' : 'Cost Column'}
+                  <span>{isAr ? 'عمود التكلفة (لحساب الربح)' : 'Cost Column'}</span>
+                  <ColumnInfoTooltip
+                    title={isAr ? 'عمود التكلفة أو سعر الشراء' : 'Cost / Unit Cost Column'}
+                    description={
+                      isAr
+                        ? 'العمود الذي يحتوي على إجمالي التكلفة أو سعر تكلفة الحبة الواحدة (سعر الشراء). يمكنك التبديل أدناه بين (إجمالي التكلفة) أو (تكلفة الحبة الواحدة) ليقوم النظام بضربها في الكمية المباعة تلقائياً واحتساب إجمالي التكلفة وصافي الأرباح بدقة متناهية.'
+                        : 'Total cost or unit cost (purchase price). Toggle below to calculate total cost as (Unit Cost × Sold Qty) automatically.'
+                    }
+                    examples={['التكلفة', 'سعر التكلفة', 'تكلفة الحبة', 'سعر الشراء', 'Cost', 'Unit Cost', 'Total Cost']}
+                    impact={
+                      isAr
+                        ? 'حساب صافي الربح وهامش الربحية وتحديد حجم رأس المال المعطل في البضائع الراكدة.'
+                        : 'Computes net margins and reveals capital tied up in slow-moving stock.'
+                    }
+                    required={false}
+                    isAr={isAr}
+                  />
                 </span>
                 <span className="text-[10px] text-slate-400">
                   {isAr ? 'مالي' : 'Financial'}
@@ -633,7 +786,14 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
               </label>
               <select
                 value={mapping.costCol}
-                onChange={(e) => setMapping({ ...mapping, costCol: e.target.value })}
+                onChange={(e) => {
+                  const col = e.target.value;
+                  setMapping({
+                    ...mapping,
+                    costCol: col,
+                    costType: isUnitCostColumn(col) ? 'unit_cost' : mapping.costType || 'total',
+                  });
+                }}
                 className="w-full text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500"
               >
                 <option value="">{isAr ? '-- غير محدد --' : '-- None --'}</option>
@@ -643,14 +803,77 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
                   </option>
                 ))}
               </select>
+
+              {/* Unit Cost Price vs Total Cost Toggle */}
+              {mapping.costCol && (
+                <div className="pt-1.5 border-t border-slate-200 dark:border-slate-700/60">
+                  <div className="flex items-center justify-between text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                    <span>{isAr ? 'نوع التكلفة بالعمود:' : 'Cost data type:'}</span>
+                    {mapping.costType === 'unit_cost' && (
+                      <span className="text-rose-500 font-extrabold flex items-center gap-0.5">
+                        <span>×</span>
+                        <span>{isAr ? 'الكمية المباعة' : 'Sold Qty'}</span>
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-1 p-0.5 bg-white/90 dark:bg-slate-900/90 rounded-lg border border-slate-300 dark:border-slate-700">
+                    <button
+                      type="button"
+                      onClick={() => setMapping({ ...mapping, costType: 'total' })}
+                      className={`text-[10px] font-bold py-1 px-1.5 rounded-md transition-all text-center ${
+                        mapping.costType !== 'unit_cost'
+                          ? 'bg-slate-800 dark:bg-slate-700 text-white shadow-xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      {isAr ? 'إجمالي التكلفة' : 'Total Cost'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMapping({ ...mapping, costType: 'unit_cost' })}
+                      className={`text-[10px] font-bold py-1 px-1.5 rounded-md transition-all text-center ${
+                        mapping.costType === 'unit_cost'
+                          ? 'bg-rose-600 text-white shadow-xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      {isAr ? 'تكلفة الحبة × الكمية' : 'Unit Cost × Qty'}
+                    </button>
+                  </div>
+                  {mapping.costType === 'unit_cost' && (
+                    <p className="text-[10px] text-rose-600 dark:text-rose-300 mt-1 leading-tight">
+                      {isAr
+                        ? '💡 تُحسب التكلفة الإجمالية = (تكلفة الحبة × الكمية المباعة)'
+                        : '💡 Auto-calculated = (Unit Cost × Sold Qty)'}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* 7. Financial: Net Profit Column */}
-            <div className="p-3.5 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-800/50 space-y-1.5">
+            <div className="p-3.5 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-800/50 space-y-1.5 relative">
               <label className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-200">
                 <span className="flex items-center gap-1.5">
                   <Crown className="w-3.5 h-3.5 text-amber-500" />
-                  {isAr ? 'عمود صافي الربح (للصنف الكينج)' : 'Net Profit Column (King Item)'}
+                  <span>{isAr ? 'عمود صافي الربح (للصنف الكينج)' : 'Net Profit Column (King Item)'}</span>
+                  <ColumnInfoTooltip
+                    title={isAr ? 'عمود صافي الربح (للصنف الكينج)' : 'Net Profit Column (King Item)'}
+                    description={
+                      isAr
+                        ? 'العمود الذي يحتوي على صافي الربح المحقق لكل صنف. إذا لم يتم اختياره، يُحسب آلياً بطرح التكلفة من المبيعات.'
+                        : 'Net profit per item. If omitted, calculated automatically as (Revenue - Cost).'
+                    }
+                    examples={['صافي الربح', 'الربح', 'Net Profit', 'Profit', 'الأرباح']}
+                    impact={
+                      isAr
+                        ? 'تتويج "الصنف الكينج (King Item)" الذي يحقق أعلى مبيعات وأعلى أرباح صافية ليقود نمو أعمالك.'
+                        : 'Crowns the King Item that generates top revenue and high profits.'
+                    }
+                    required={false}
+                    isAr={isAr}
+                    align="end"
+                  />
                 </span>
                 <span className="text-[10px] text-amber-600 font-bold">
                   {isAr ? 'مالي / ربحية' : 'Profitability'}
@@ -673,11 +896,28 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
             </div>
 
             {/* 8. Date Column */}
-            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/80 space-y-1.5">
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/80 space-y-1.5 relative">
               <label className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-200">
                 <span className="flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5 text-blue-500" />
-                  {isAr ? 'عمود التاريخ (لتحديد الفترة)' : 'Date Column (Period Filter)'}
+                  <span>{isAr ? 'عمود التاريخ (لتحديد الفترة)' : 'Date Column (Period Filter)'}</span>
+                  <ColumnInfoTooltip
+                    title={isAr ? 'عمود التاريخ' : 'Date Column'}
+                    description={
+                      isAr
+                        ? 'العمود الذي يحتوي على تاريخ حركات البيع لتحديد عدد أيام الفترة المحسوبة بدقة.'
+                        : 'Transaction date column used to calculate the active duration in days.'
+                    }
+                    examples={['التاريخ', 'تاريخ الحركة', 'تاريخ البيع', 'Date', 'Transaction Date', 'Movement Date']}
+                    impact={
+                      isAr
+                        ? 'تحديد فترة التحليل الفردية ومعدل السحب اليومي بدقة فائقة بدلاً من التقدير اليدوي.'
+                        : 'Enables automatic calculation of analyzed days and accurate daily run rate.'
+                    }
+                    required={false}
+                    isAr={isAr}
+                    align="end"
+                  />
                 </span>
                 <span className="text-[10px] text-blue-500 font-bold">
                   {isAr ? 'زمني' : 'Time'}
@@ -1437,7 +1677,12 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
                   <td className="py-3.5 px-4 font-bold text-slate-800 dark:text-slate-200">
                     <div>{formatCurrency(item.revenue, isAr)}</div>
                     <div className="text-[10px] text-slate-400 font-normal">
-                      {item.revenueSharePercent}% {isAr ? 'من الإيراد' : 'share'}
+                      <span>{item.revenueSharePercent}% {isAr ? 'من الإيراد' : 'share'}</span>
+                      {item.unitPrice > 0 && (
+                        <span className="ms-1 font-mono text-[10px] text-slate-500 dark:text-slate-400">
+                          ({formatCurrency(item.unitPrice, isAr)}/{isAr ? 'حبة' : 'u'})
+                        </span>
+                      )}
                     </div>
                   </td>
 
@@ -1447,7 +1692,12 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
                       {formatCurrency(item.profit, isAr)}
                     </div>
                     <div className="text-[11px] font-semibold text-slate-500">
-                      {isAr ? 'هامش:' : 'Margin:'} {item.profitMarginPercent}%
+                      <span>{isAr ? 'هامش:' : 'Margin:'} {item.profitMarginPercent}%</span>
+                      {item.unitProfit !== 0 && (
+                        <span className="ms-1 font-mono text-[10px] text-emerald-600 dark:text-emerald-400">
+                          ({formatCurrency(item.unitProfit, isAr)}/{isAr ? 'حبة' : 'u'})
+                        </span>
+                      )}
                     </div>
                   </td>
 
