@@ -40,7 +40,61 @@ export const App: React.FC = () => {
   const isAr = language === 'ar';
 
   // Main Application Mode: 'home' (Landing chooser) | 'sales' | 'inventory'
-  const [appMode, setAppMode] = useState<AppMode>('home');
+  // Reads ?mode=sales or ?mode=inventory from URL for Googlebot & deep-linking
+  const [appMode, setAppMode] = useState<AppMode>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const modeParam = params.get('mode');
+      if (modeParam === 'sales' || modeParam === 'inventory') {
+        return modeParam;
+      }
+    }
+    return 'home';
+  });
+
+  // Synchronize URL query parameter, Document Title & Meta Description for SEO / Google Search Console
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const url = new URL(window.location.href);
+    if (appMode === 'home') {
+      url.searchParams.delete('mode');
+    } else {
+      url.searchParams.set('mode', appMode);
+    }
+    window.history.replaceState({}, '', url.toString());
+
+    const metaDesc = document.querySelector('meta[name="description"]');
+    if (appMode === 'sales') {
+      document.title = isAr
+        ? 'تحليل المبيعات ونقاط القوة والضعف | DataSolu BI Pro'
+        : 'Sales Analysis, SWOT & Growth Proposals | DataSolu BI Pro';
+      if (metaDesc) {
+        metaDesc.setAttribute(
+          'content',
+          isAr
+            ? 'قسم تحليل المبيعات والأداء المالي من ملفات الإكسيل: ربط أعمدة المبيعات والأرباح، تشخيص نقاط القوة والضعف، ومقترحات عملية لزيادة المبيعات.'
+            : 'Sales & financial performance analysis from Excel files: column mapping, SWOT strengths & weaknesses diagnosis, and actionable revenue growth tips.'
+        );
+      }
+    } else if (appMode === 'inventory') {
+      document.title = isAr
+        ? 'تحليل المخزون والأصناف الأكثر مبيعاً والأصناف الكينج | DataSolu BI Pro'
+        : 'Inventory, Best-Sellers, King Items & Restock Analysis | DataSolu BI Pro';
+      if (metaDesc) {
+        metaDesc.setAttribute(
+          'content',
+          isAr
+            ? 'قسم تحليل المخزون وحركة الأصناف من الإكسيل: تحديد فترة المبيعات، تصنيف الأصناف السريعة والمتوسطة والضعيفة، اكتشاف الأصناف الكينج، واقتراح كميات التوريد.'
+            : 'Inventory & SKU velocity analysis from Excel: manual or date period duration, ABC fast/medium/slow classification, King Items, and suggested order quantities.'
+        );
+      }
+    } else {
+      document.title = isAr
+        ? 'DataSolu BI Pro | منصة تحليل المبيعات والمخزون والأصناف الأكثر مبيعاً من الإكسيل'
+        : 'DataSolu BI Pro | Smart Sales & Inventory Excel Analytics Platform';
+    }
+  }, [appMode, isAr]);
 
   // TWO COMPLETELY SEPARATE WORKBOOKS: one for Sales Analysis, one for Inventory Analysis
   const [salesWorkbook, setSalesWorkbook] = useState<WorkbookData | null>(() =>

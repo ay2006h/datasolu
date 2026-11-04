@@ -1,0 +1,12 @@
+{
+  "name": "DataSolu BI Pro - منصة تحليل المبيعات والمخزون الذكية",
+  "short_name": "DataSolu",
+  "description": "منصة ذكية لتحليل ملفات الإكسيل للمبيعات والمخزون، اكتشاف الأصناف الأكثر مبيعاً والأصناف الكينج، حساب كميات التوريد المقترحة، وتحليل نقاط القوة والضعف.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0284c7",
+  "lang": "ar",
+  "dir": "rtl",
+  "orientation": "any"
+}

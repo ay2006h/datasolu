@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <!-- الصفحة الرئيسية لمنصة DataSolu -->
+  <url>
+    <loc>https://ay2006h.github.io/datasolu/</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+
+  <!-- قسم تحليل المبيعات والأداء المالي ونقاط القوة والضعف -->
+  <url>
+    <loc>https://ay2006h.github.io/datasolu/?mode=sales</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <!-- قسم تحليل المخزون والأصناف الأكثر مبيعاً والأصناف الكينج -->
+  <url>
+    <loc>https://ay2006h.github.io/datasolu/?mode=inventory</loc>
+    <lastmod>2026-11-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+</urlset>
