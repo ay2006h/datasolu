@@ -4,5 +4,5 @@ Allow: /
 User-agent: Googlebot
 Allow: /
 
-# Sitemap location (Update domain if deployed to a custom domain)
-Sitemap: https://ay2006h.github.io/datasolu/sitemap.xml
+# Sitemap location
+Sitemap: https://data.ahesolu.com/sitemap.xml

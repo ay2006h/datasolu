@@ -65,6 +65,16 @@ export const App: React.FC = () => {
     window.history.replaceState({}, '', url.toString());
 
     const metaDesc = document.querySelector('meta[name="description"]');
+    const canonicalLink = document.querySelector('link[rel="canonical"]');
+    if (canonicalLink) {
+      canonicalLink.setAttribute(
+        'href',
+        appMode === 'home'
+          ? 'https://data.ahesolu.com/'
+          : `https://data.ahesolu.com/?mode=${appMode}`
+      );
+    }
+
     if (appMode === 'sales') {
       document.title = isAr
         ? 'تحليل المبيعات ونقاط القوة والضعف | DataSolu BI Pro'

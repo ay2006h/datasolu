@@ -3,7 +3,7 @@
         xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <!-- الصفحة الرئيسية لمنصة DataSolu -->
   <url>
-    <loc>https://ay2006h.github.io/datasolu/</loc>
+    <loc>https://data.ahesolu.com/</loc>
     <lastmod>2026-11-04</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
@@ -11,7 +11,7 @@
 
   <!-- قسم تحليل المبيعات والأداء المالي ونقاط القوة والضعف -->
   <url>
-    <loc>https://ay2006h.github.io/datasolu/?mode=sales</loc>
+    <loc>https://data.ahesolu.com/?mode=sales</loc>
     <lastmod>2026-11-04</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
@@ -19,7 +19,7 @@
 
   <!-- قسم تحليل المخزون والأصناف الأكثر مبيعاً والأصناف الكينج -->
   <url>
-    <loc>https://ay2006h.github.io/datasolu/?mode=inventory</loc>
+    <loc>https://data.ahesolu.com/?mode=inventory</loc>
     <lastmod>2026-11-04</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
