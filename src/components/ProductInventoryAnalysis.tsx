@@ -21,6 +21,10 @@ import {
   RotateCcw,
   Sparkles,
   ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -80,6 +84,15 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sortBy, setSortBy] = useState<'soldQty' | 'revenue' | 'profit' | 'margin' | 'suggestedOrder'>('soldQty');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
+
+  // 4. Pagination State
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(15);
+
+  // Reset to first page when filtering or sorting changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeMovementTab, searchQuery, sortBy, sortOrder, categoryFilter]);
 
   // Re-detect mapping when sheet changes
   useEffect(() => {
@@ -183,6 +196,132 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
         return sortOrder === 'desc' ? valB - valA : valA - valB;
       });
   }, [items, activeMovementTab, searchQuery, sortBy, sortOrder]);
+
+  // Pagination calculations for main table
+  const totalItems = filteredItems.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safePage = Math.min(Math.max(1, currentPage), totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalItems);
+
+  const paginatedItems = useMemo(() => {
+    return filteredItems.slice(startIndex, endIndex);
+  }, [filteredItems, startIndex, endIndex]);
+
+  const getPageNumbers = (current: number, total: number): number[] => {
+    if (total <= 7) {
+      return Array.from({ length: total }, (_, i) => i + 1);
+    }
+    const pages: number[] = [];
+    pages.push(1);
+    if (current > 3) {
+      pages.push(-1); // ellipsis
+    }
+    const start = Math.max(2, current - 1);
+    const end = Math.min(total - 1, current + 1);
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+    if (current < total - 2) {
+      pages.push(-1); // ellipsis
+    }
+    pages.push(total);
+    return pages;
+  };
+
+  // Export ONLY items needing restock/reorder to Excel (الأصناف المطلوب طلبها وتوريدها فقط)
+  const handleExportRestockOnlyExcel = () => {
+    const restockItems = items.filter(
+      (item) =>
+        item.suggestedOrderQty > 0 ||
+        item.restockUrgency === 'critical' ||
+        item.restockUrgency === 'needed'
+    );
+
+    if (restockItems.length === 0) {
+      alert(
+        isAr
+          ? 'ممتاز! لا توجد أصناف تحتاج لإعادة طلب حالياً (المخزون الحالي يغطي الفترة المحددة بالكامل).'
+          : 'Great! No items currently need restocking (current stock covers the target period).'
+      );
+      return;
+    }
+
+    const sortedRestock = [...restockItems].sort((a, b) => {
+      if (a.restockUrgency === 'critical' && b.restockUrgency !== 'critical') return -1;
+      if (b.restockUrgency === 'critical' && a.restockUrgency !== 'critical') return 1;
+      if (a.isKingItem && !b.isKingItem) return -1;
+      if (b.isKingItem && !a.isKingItem) return 1;
+      return b.suggestedOrderQty - a.suggestedOrderQty;
+    });
+
+    const exportRows = sortedRestock.map((item, idx) => {
+      const estimatedUnitCost =
+        item.soldQty > 0
+          ? Math.round((item.cost / item.soldQty) * 100) / 100
+          : Math.round(item.unitPrice * 0.7 * 100) / 100;
+      const estimatedTotalCost =
+        Math.round(item.suggestedOrderQty * estimatedUnitCost * 100) / 100;
+
+      return {
+        [isAr ? 'م' : '#']: idx + 1,
+        [isAr ? 'اسم الصنف' : 'Item Name']: item.itemName,
+        [isAr ? 'القسم / الفئة' : 'Category']: item.category,
+        [isAr ? 'حالة وأولوية التوريد' : 'Restock Priority']:
+          item.restockUrgency === 'critical'
+            ? isAr
+              ? '🚨 عاجل جداً (أولوية قصوى)'
+              : '🚨 Critical Priority'
+            : isAr
+            ? '⚠️ يحتاج توفير'
+            : '⚠️ Needed',
+        [isAr ? 'تصنيف حركة الصنف' : 'Classification']: item.isKingItem
+          ? isAr
+            ? `👑 صنف كينج (#${item.kingRank})`
+            : `👑 King Item (#${item.kingRank})`
+          : item.movementSpeed === 'fast'
+          ? isAr
+            ? 'سريع الحركة'
+            : 'Fast Moving'
+          : item.movementSpeed === 'medium'
+          ? isAr
+            ? 'متوسط الحركة'
+            : 'Medium Moving'
+          : isAr
+          ? 'بطيء الحركة'
+          : 'Slow Moving',
+        [isAr
+          ? `الكمية المطلوب طلبها (${targetCoverageDays} يوم)`
+          : `Suggested Order Qty (${targetCoverageDays}d)`]: item.suggestedOrderQty,
+        ...(mapping.currentStockCol
+          ? {
+              [isAr ? 'المخزون الحالي' : 'Current Stock']: item.currentStock ?? 0,
+              [isAr ? 'أيام التغطية المتبقية' : 'Days Left']:
+                item.daysOfInventoryLeft === 999
+                  ? '∞'
+                  : item.daysOfInventoryLeft ?? '-',
+            }
+          : {}),
+        [isAr ? 'معدل السحب اليومي' : 'Daily Run Rate']: item.dailyRunRate,
+        [isAr ? 'سعر التكلفة التقديري للوحدة' : 'Estimated Unit Cost']: estimatedUnitCost,
+        [isAr ? 'إجمالي تكلفة الشراء التقديرية' : 'Estimated Total Order Cost']: estimatedTotalCost,
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(exportRows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(
+      wb,
+      ws,
+      isAr ? 'الأصناف المطلوب طلبها' : 'Items to Reorder'
+    );
+    XLSX.writeFile(
+      wb,
+      isAr
+        ? `أمر_شراء_الأصناف_المطلوب_طلبها_${new Date().toISOString().split('T')[0]}.xlsx`
+        : `Reorder_Items_Purchase_List_${new Date().toISOString().split('T')[0]}.xlsx`
+    );
+  };
 
   // Export Restock & Analysis Table to Excel
   const handleExportRestockExcel = () => {
@@ -426,13 +565,32 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
               )}
             </button>
 
+            {/* Button 1: Download ONLY items that need reordering */}
+            <button
+              onClick={handleExportRestockOnlyExcel}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 text-white text-xs font-bold shadow-lg shadow-rose-600/30 transition-all hover:scale-105"
+              title={
+                isAr
+                  ? 'تحميل ملف إكسيل يقتصر فقط على الأصناف التي تحتاج لإعادة طلب وتوريد'
+                  : 'Download Excel with only items that need reordering'
+              }
+            >
+              <ShoppingCart className="w-4 h-4" />
+              <span>
+                {isAr
+                  ? `تحميل الأصناف المطلوب طلبها فقط (${summary.restockNeededCount})`
+                  : `Export Reorder List Only (${summary.restockNeededCount})`}
+              </span>
+            </button>
+
+            {/* Button 2: Export full report of all products */}
             <button
               onClick={handleExportRestockExcel}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold shadow-lg shadow-emerald-500/25 transition-all hover:scale-105"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-lg shadow-emerald-600/25 transition-all hover:scale-105"
             >
               <Download className="w-4 h-4" />
               <span>
-                {isAr ? 'تصدير خطة التوريد والأصناف (Excel)' : 'Export Restock Plan (Excel)'}
+                {isAr ? 'تصدير التقرير الكامل للأصناف (Excel)' : 'Export Full Report (Excel)'}
               </span>
             </button>
           </div>
@@ -1298,11 +1456,25 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
               ({summary.totalSuggestedOrderUnits.toLocaleString()} {isAr ? 'وحدة مقترحة' : 'units'})
             </span>
           </div>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-            {isAr
-              ? `لتغطية ${targetCoverageDays} يوم (${formatCurrency(summary.estimatedRestockCost, isAr)})`
-              : `For ${targetCoverageDays}d coverage (${formatCurrency(summary.estimatedRestockCost, isAr)})`}
-          </p>
+          <div className="mt-2.5 pt-2 border-t border-rose-200/80 dark:border-rose-800/60 flex items-center justify-between gap-1">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+              {isAr
+                ? `لتغطية ${targetCoverageDays} يوم (${formatCurrency(summary.estimatedRestockCost, isAr)})`
+                : `For ${targetCoverageDays}d (${formatCurrency(summary.estimatedRestockCost, isAr)})`}
+            </p>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleExportRestockOnlyExcel();
+              }}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold shadow-xs transition-colors shrink-0"
+              title={isAr ? 'تحميل ملف الأصناف المطلوب طلبها فقط (Excel)' : 'Download reorder items only'}
+            >
+              <Download className="w-3 h-3" />
+              <span>{isAr ? 'تحميل الملف' : 'Export'}</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1536,16 +1708,32 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
               </button>
             </div>
 
-            {/* Search Input */}
-            <div className="relative min-w-[240px]">
-              <Search className="w-4 h-4 text-slate-400 absolute top-1/2 -translate-y-1/2 start-3" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={isAr ? 'ابحث باسم الصنف أو القسم...' : 'Search item or category...'}
-                className="w-full ps-9 pe-4 py-2 text-xs font-semibold rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-              />
+            {/* Right: Search and Quick Reorder Download */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleExportRestockOnlyExcel}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800 text-xs font-bold transition-all shadow-xs shrink-0"
+                title={isAr ? 'تحميل ملف إكسيل به الأصناف المطلوب طلبها فقط' : 'Download reorder items only'}
+              >
+                <ShoppingCart className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                <span>
+                  {isAr
+                    ? `تحميل الأصناف المطلوب طلبها (${summary.restockNeededCount})`
+                    : `Export Reorder (${summary.restockNeededCount})`}
+                </span>
+              </button>
+
+              <div className="relative min-w-[220px]">
+                <Search className="w-4 h-4 text-slate-400 absolute top-1/2 -translate-y-1/2 start-3" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={isAr ? 'ابحث باسم الصنف أو القسم...' : 'Search item or category...'}
+                  className="w-full ps-9 pe-4 py-2 text-xs font-semibold rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -1606,7 +1794,7 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200/70 dark:divide-slate-700/60 text-xs">
-              {filteredItems.map((item, idx) => (
+              {paginatedItems.map((item, idx) => (
                 <tr
                   key={item.id}
                   className={`transition-colors ${
@@ -1615,7 +1803,7 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
                       : 'hover:bg-slate-50/90 dark:hover:bg-slate-800/50'
                   }`}
                 >
-                  <td className="py-3.5 px-4 font-bold text-slate-400">{idx + 1}</td>
+                  <td className="py-3.5 px-4 font-bold text-slate-400">{startIndex + idx + 1}</td>
 
                   {/* Item Name & Category */}
                   <td className="py-3.5 px-4">
@@ -1737,6 +1925,107 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Pagination Controls Bar */}
+        <div className="p-4 border-t border-slate-200 dark:border-slate-700/80 flex flex-wrap items-center justify-between gap-4 bg-slate-50/70 dark:bg-slate-900/60">
+          {/* Left Side: Summary & Page Size Selector */}
+          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 dark:text-slate-400">
+            <span>
+              {isAr
+                ? `عرض ${totalItems > 0 ? startIndex + 1 : 0} - ${endIndex} من أصل ${totalItems.toLocaleString()} صنف`
+                : `Showing ${totalItems > 0 ? startIndex + 1 : 0} - ${endIndex} of ${totalItems.toLocaleString()} items`}
+            </span>
+
+            <div className="flex items-center gap-1.5 ms-2">
+              <span className="text-[11px] font-medium">{isAr ? 'عدد الأصناف بالصفحة:' : 'Per page:'}</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="px-2.5 py-1 text-xs font-bold rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value={10}>10</option>
+                <option value={15}>15</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Right Side: Page Navigation Buttons */}
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              {/* First Page Button */}
+              <button
+                type="button"
+                disabled={safePage === 1}
+                onClick={() => setCurrentPage(1)}
+                className="p-1.5 rounded-lg border border-slate-300 dark:border-slate-600 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors"
+                title={isAr ? 'الصفحة الأولى' : 'First Page'}
+              >
+                {isAr ? <ChevronsRight className="w-4 h-4" /> : <ChevronsLeft className="w-4 h-4" />}
+              </button>
+
+              {/* Previous Page Button */}
+              <button
+                type="button"
+                disabled={safePage === 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="p-1.5 rounded-lg border border-slate-300 dark:border-slate-600 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors"
+                title={isAr ? 'الصفحة السابقة' : 'Previous Page'}
+              >
+                {isAr ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+              </button>
+
+              {/* Numbered Page Buttons */}
+              {getPageNumbers(safePage, totalPages).map((p, i) =>
+                p === -1 ? (
+                  <span key={`ellipsis-${i}`} className="px-2 text-slate-400 font-bold select-none">
+                    ...
+                  </span>
+                ) : (
+                  <button
+                    key={`page-${p}`}
+                    type="button"
+                    onClick={() => setCurrentPage(p)}
+                    className={`min-w-[32px] h-8 px-2 text-xs font-bold rounded-lg transition-all ${
+                      safePage === p
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                )
+              )}
+
+              {/* Next Page Button */}
+              <button
+                type="button"
+                disabled={safePage === totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="p-1.5 rounded-lg border border-slate-300 dark:border-slate-600 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors"
+                title={isAr ? 'الصفحة التالية' : 'Next Page'}
+              >
+                {isAr ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              </button>
+
+              {/* Last Page Button */}
+              <button
+                type="button"
+                disabled={safePage === totalPages}
+                onClick={() => setCurrentPage(totalPages)}
+                className="p-1.5 rounded-lg border border-slate-300 dark:border-slate-600 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors"
+                title={isAr ? 'الصفحة الأخيرة' : 'Last Page'}
+              >
+                {isAr ? <ChevronsLeft className="w-4 h-4" /> : <ChevronsRight className="w-4 h-4" />}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
