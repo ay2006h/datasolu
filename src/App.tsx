@@ -38,6 +38,8 @@ import {
   ShieldAlert,
   Wallet,
   Compass,
+  Lock,
+  Trash2,
 } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -123,35 +125,56 @@ export const App: React.FC = () => {
     }
   }, [appMode, isAr]);
 
-  // TWO COMPLETELY SEPARATE WORKBOOKS: one for Sales Analysis, one for Inventory Analysis
-  const [salesWorkbook, setSalesWorkbook] = useState<WorkbookData | null>(() =>
-    getSampleSalesData('ar')
-  );
-  const [inventoryWorkbook, setInventoryWorkbook] = useState<WorkbookData | null>(() =>
-    getSampleInventoryData('ar')
-  );
+  // TWO COMPLETELY SEPARATE WORKBOOKS: Start 100% EMPTY (no simulation data on open).
+  // Only restores what the user previously uploaded and saved in internal localStorage.
+  const [salesWorkbook, setSalesWorkbook] = useState<WorkbookData | null>(() => {
+    try {
+      const saved = localStorage.getItem('datasolu_sales_internal_v2');
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+    return null;
+  });
+
+  const [inventoryWorkbook, setInventoryWorkbook] = useState<WorkbookData | null>(() => {
+    try {
+      const saved = localStorage.getItem('datasolu_inventory_internal_v2');
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+    return null;
+  });
 
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
 
-  // Update default sample workbooks when language toggles (only if user hasn't uploaded a custom file)
+  // Persist user-uploaded Sales & Inventory workbooks to internal browser storage
   useEffect(() => {
-    if (
-      salesWorkbook &&
-      (salesWorkbook.fileName.includes('sales_') ||
-        salesWorkbook.fileName.includes('تقرير_مبيعات_الأعمال'))
-    ) {
-      setSalesWorkbook(getSampleSalesData(language));
+    try {
+      if (salesWorkbook) {
+        localStorage.setItem('datasolu_sales_internal_v2', JSON.stringify(salesWorkbook));
+      } else {
+        localStorage.removeItem('datasolu_sales_internal_v2');
+      }
+    } catch {
+      // ignore quota errors for very large files
     }
-    if (
-      inventoryWorkbook &&
-      (inventoryWorkbook.fileName.includes('inventory_') ||
-        inventoryWorkbook.fileName.includes('شيت_جرد_وحركة_المخزون'))
-    ) {
-      setInventoryWorkbook(getSampleInventoryData(language));
+  }, [salesWorkbook]);
+
+  useEffect(() => {
+    try {
+      if (inventoryWorkbook) {
+        localStorage.setItem('datasolu_inventory_internal_v2', JSON.stringify(inventoryWorkbook));
+      } else {
+        localStorage.removeItem('datasolu_inventory_internal_v2');
+      }
+    } catch {
+      // ignore quota errors for very large files
     }
-  }, [language]);
+  }, [inventoryWorkbook]);
 
   // Active Sheet for Sales Mode
   const activeSalesSheet = useMemo(() => {
@@ -310,9 +333,35 @@ export const App: React.FC = () => {
 
               <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed">
                 {isAr
-                  ? 'تم فصل قسم تحليل المبيعات عن قسم تحليل المخزون والأصناف بحيث يمكنك رفع ملف إكسيل مستقل لكل قسم مع خطوة ربط الأعمدة (Column Mapping) الخاصة به.'
-                  : 'Sales Analysis and Inventory Analysis operate with completely separate Excel files and tailored column mapping workflows.'}
+                  ? 'يفتح الموقع فارغاً تماماً بدون أي بيانات محاكاة. اختر القسم المطلوب لبدء العمل مع حفظ تلقائي داخلي لكل ما تدخله.'
+                  : 'The platform opens completely empty with zero mock data. Choose your workspace below with automatic internal local storage.'}
               </p>
+            </div>
+
+            {/* PROMINENT LOCAL-ONLY PRIVACY FEATURE BANNER (البيانات تحفظ داخلياً فقط لا علاقة لنا ببياناتك) */}
+            <div className="rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 dark:from-emerald-950/60 dark:via-slate-900 dark:to-teal-950/50 border-2 border-emerald-500/50 p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3.5">
+                <div className="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 shadow-md">
+                  <Lock className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-700 text-white uppercase">
+                      {isAr ? 'ميزة الحفظ الداخلي والخصوصية 100%' : '100% Local-Only Storage'}
+                    </span>
+                    <h2 className="text-sm sm:text-base font-black text-slate-900 dark:text-white">
+                      {isAr
+                        ? 'بياناتك تُحفظ داخلياً على جهازك فقط — لا علاقة لنا ببياناتك إطلاقاً'
+                        : 'Your Data is Saved Internally on Your Device Only — Zero Server Access'}
+                    </h2>
+                  </div>
+                  <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+                    {isAr
+                      ? 'جميع الملفات والمعلومات التي تدخلها (سواء في تحليل المبيعات، المخزون، أو فحص الأسهم والمحفظة) يتم معالجتها وحفظها داخلياً في متصفحك وجهازك الشخصي فقط (Local Storage). لا يتم إرسال أو رفع أي بيانات لأي خادم خارجي، ولا علاقة لنا ببياناتك ولا نطلع عليها بأي شكل.'
+                      : 'All files and information you enter across Sales, Inventory, or Stock Market Portfolio are processed and saved strictly inside your browser on your own device. Nothing is uploaded to any external server and we have no relation or access to your data.'}
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* Triple Choice Cards: Sales Analysis vs Inventory Analysis vs Stock Market Analysis */}
@@ -589,7 +638,24 @@ export const App: React.FC = () => {
         {appMode === 'sales' && (
           <div className="space-y-8">
             {/* Independent Sales File Upload & Sheet Selector */}
-            <section>
+            <section className="space-y-3">
+              {salesWorkbook && (
+                <div className="flex items-center justify-between bg-emerald-50/80 dark:bg-slate-800/80 px-4 py-2.5 rounded-2xl border border-emerald-200 dark:border-slate-700 text-xs">
+                  <span className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-emerald-600" />
+                    {isAr
+                      ? 'البيانات الحالية محفوظة داخلياً على جهازك فقط — لا علاقة لنا ببياناتك'
+                      : 'Data saved internally on your device only'}
+                  </span>
+                  <button
+                    onClick={() => setSalesWorkbook(null)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black transition-all"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>{isAr ? 'مسح البيانات الحالية' : 'Clear Current Data'}</span>
+                  </button>
+                </div>
+              )}
               <FileUpload
                 mode="sales"
                 onDataLoaded={(data) => {
@@ -682,7 +748,24 @@ export const App: React.FC = () => {
         {appMode === 'inventory' && (
           <div className="space-y-8">
             {/* Independent Inventory File Upload & Sheet Selector */}
-            <section>
+            <section className="space-y-3">
+              {inventoryWorkbook && (
+                <div className="flex items-center justify-between bg-amber-50/80 dark:bg-slate-800/80 px-4 py-2.5 rounded-2xl border border-amber-200 dark:border-slate-700 text-xs">
+                  <span className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-emerald-600" />
+                    {isAr
+                      ? 'البيانات الحالية محفوظة داخلياً على جهازك فقط — لا علاقة لنا ببياناتك'
+                      : 'Data saved internally on your device only'}
+                  </span>
+                  <button
+                    onClick={() => setInventoryWorkbook(null)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black transition-all"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>{isAr ? 'مسح البيانات الحالية' : 'Clear Current Data'}</span>
+                  </button>
+                </div>
+              )}
               <FileUpload
                 mode="inventory"
                 onDataLoaded={(data) => {
@@ -744,10 +827,10 @@ export const App: React.FC = () => {
               <span>{t.app.tagline}</span>
             </div>
             <div>
-              <span>
+              <span className="font-bold text-emerald-700 dark:text-emerald-400">
                 {isAr
-                  ? 'جميع البيانات تعالج وتحفظ محلياً داخل جهازك بأمان 100%'
-                  : 'All data processed & saved locally on your device'}
+                  ? '🔒 ميزة الخصوصية: جميع البيانات تُحفظ داخلياً على جهازك فقط — لا علاقة لنا ببياناتك إطلاقاً'
+                  : '🔒 Privacy Guarantee: All data is saved internally on your device only — we have no relation to your data'}
               </span>
             </div>
           </div>

@@ -181,15 +181,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            {appMode !== 'home' && appMode !== 'stocks' && !hasData && (
-              <button
-                onClick={onLoadSample}
-                className="flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-lg bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-700 hover:to-indigo-700 text-white shadow-md shadow-brand-500/20 transition-all hover:scale-[1.02]"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>{t.nav.loadSample}</span>
-              </button>
-            )}
+            {/* Local-Only Storage Guarantee Pill */}
+            <div
+              className="hidden xl:flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+              title={
+                isAr
+                  ? 'جميع البيانات تُحفظ داخلياً على جهازك فقط — لا علاقة لنا ببياناتك'
+                  : 'All data saved locally on your device only'
+              }
+            >
+              <span>🔒 {isAr ? 'حفظ داخلي فقط — لا علاقة لنا ببياناتك' : '100% Local Storage Only'}</span>
+            </div>
 
             {appMode !== 'home' && (hasData || appMode === 'stocks') && (
               <button
