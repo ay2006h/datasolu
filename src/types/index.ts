@@ -1,6 +1,6 @@
 export type Language = 'ar' | 'en';
 export type Theme = 'light' | 'dark';
-export type AppMode = 'home' | 'sales' | 'inventory';
+export type AppMode = 'home' | 'sales' | 'inventory' | 'stocks';
 
 export interface SalesColumnMapping {
   revenueCol: string;
@@ -206,4 +206,153 @@ export interface ProductAnalyticsSummary {
   topKingItem: ProductAnalyticsItem | null;
   topSellingItem: ProductAnalyticsItem | null;
 }
+
+// ============================================================================
+// STOCK MARKET & PORTFOLIO INTELLIGENCE TYPES
+// ============================================================================
+
+export type MarketRegion = 'saudi' | 'egypt' | 'us' | 'uae' | 'custom';
+
+export type AnalyticalSignal =
+  | 'strong_accumulation' // منطقة تجميع فني ومالي قوية (للاسترشاد)
+  | 'positive_momentum'   // زخم إيجابي / قرب دعم
+  | 'neutral_watch'       // منطقة محايدة / مراقبة
+  | 'take_profit_zone'    // منطقة تشبع شرائي / جني أرباح محتمل
+  | 'caution_risk';       // منطقة حذر / تقييم مرتفع
+
+export type SitePickCategory =
+  | 'growth'      // أسهم النمو القوي
+  | 'value'       // أسهم القيمة العادلة المغرية
+  | 'dividend'    // أسهم العوائد والتوزيعات
+  | 'momentum'    // أسهم الزخم الفني الإيجابي
+  | 'none';
+
+export type PersonalStance =
+  | 'very_bullish' // إيجابي جداً (متفائل بقوة)
+  | 'bullish'      // متفائل بحذر
+  | 'neutral'      // محايد / تحت المراقبة
+  | 'bearish';     // سلبي / انتظار تصحيح
+
+export interface StockItem {
+  id: string;
+  symbol: string;
+  nameAr: string;
+  nameEn: string;
+  market: MarketRegion;
+  currency: string;
+  sectorAr: string;
+  sectorEn: string;
+  currentPrice: number;
+  previousClose: number;
+  changePercent: number;
+  high52W: number;
+  low52W: number;
+  // Technical metrics
+  rsi14: number;
+  ma50: number;
+  ma200: number;
+  support1: number;
+  support2: number;
+  resistance1: number;
+  resistance2: number;
+  volumeTrend: 'high' | 'normal' | 'low';
+  // Fundamental metrics
+  peRatio: number;
+  pbRatio: number;
+  roePercent: number;
+  dividendYieldPercent: number;
+  estimatedFairValue: number;
+  // Site Featured Pick & Analytical Evaluation (Guidance only)
+  isSiteFavorite: boolean;
+  sitePickCategory: SitePickCategory;
+  siteAnalyticalScore: number; // 0 to 100
+  analyticalSignal: AnalyticalSignal;
+  siteRationaleAr: string;
+  siteRationaleEn: string;
+  // Historical recent prices for sparkline/chart (last 12 points)
+  priceHistory: number[];
+  // User customization
+  isWatchlisted?: boolean;
+}
+
+export interface StockTransaction {
+  id: string;
+  stockId: string;
+  symbol: string;
+  stockNameAr: string;
+  stockNameEn: string;
+  market: MarketRegion;
+  currency: string;
+  type: 'buy' | 'sell';
+  quantity: number;
+  price: number;
+  commission: number;
+  totalAmount: number; // For buy: qty*price + commission; For sell: qty*price - commission
+  realizedPnL?: number; // Populated on sell transactions
+  date: string;
+  strategyTag: string;
+  notes: string;
+}
+
+export interface PortfolioHolding {
+  stockId: string;
+  symbol: string;
+  nameAr: string;
+  nameEn: string;
+  market: MarketRegion;
+  currency: string;
+  sectorAr: string;
+  sectorEn: string;
+  quantity: number;
+  avgCostPrice: number;
+  totalCost: number;
+  currentPrice: number;
+  marketValue: number;
+  unrealizedPnL: number;
+  unrealizedPnLPercent: number;
+  weightPercent: number;
+  stopLossPrice?: number;
+  targetPrice?: number;
+}
+
+export interface StockTradePlan {
+  id: string;
+  stockId: string;
+  symbol: string;
+  stockNameAr: string;
+  stockNameEn: string;
+  currency: string;
+  title: string;
+  timeframe: 'intraday' | 'short_term' | 'swing' | 'long_term';
+  entryPrice: number;
+  stopLossPrice: number;
+  target1Price: number;
+  target2Price: number;
+  target3Price?: number;
+  plannedCapital: number;
+  riskPercentOfCapital: number;
+  recommendedShares: number;
+  riskRewardRatio: number;
+  bullScenario: string; // السيناريو الإيجابي
+  baseScenario: string; // السيناريو الأساسي
+  bearScenario: string; // السيناريو السلبي وخطة الطوارئ
+  status: 'watching' | 'active' | 'target_hit' | 'stopped_out' | 'cancelled';
+  createdAt: string;
+}
+
+export interface PersonalStockOpinion {
+  id: string;
+  stockId: string;
+  symbol: string;
+  stockNameAr: string;
+  stockNameEn: string;
+  stance: PersonalStance;
+  personalTargetPrice: number;
+  personalSupportNote: string;
+  convictionLevel: number; // 1 to 5 stars
+  thesisNotes: string;
+  tags: string[];
+  updatedAt: string;
+}
+
 

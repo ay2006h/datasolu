@@ -11,6 +11,7 @@ import { DataTable } from './components/DataTable';
 import { PivotTable } from './components/PivotTable';
 import { ProductInventoryAnalysis } from './components/ProductInventoryAnalysis';
 import { SalesMappingAndSwot } from './components/SalesMappingAndSwot';
+import { StockMarketAnalysis } from './components/StockMarketAnalysis';
 import { useI18n } from './locales/i18nContext';
 import { AppMode, SalesColumnMapping, WorkbookData } from './types';
 import {
@@ -33,19 +34,23 @@ import {
   Rocket,
   Settings2,
   FileSpreadsheet,
+  CandlestickChart,
+  ShieldAlert,
+  Wallet,
+  Compass,
 } from 'lucide-react';
 
 export const App: React.FC = () => {
   const { language, t, dir } = useI18n();
   const isAr = language === 'ar';
 
-  // Main Application Mode: 'home' (Landing chooser) | 'sales' | 'inventory'
-  // Reads ?mode=sales or ?mode=inventory from URL for Googlebot & deep-linking
+  // Main Application Mode: 'home' (Landing chooser) | 'sales' | 'inventory' | 'stocks'
+  // Reads ?mode=sales or ?mode=inventory or ?mode=stocks from URL for Googlebot & deep-linking
   const [appMode, setAppMode] = useState<AppMode>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const modeParam = params.get('mode');
-      if (modeParam === 'sales' || modeParam === 'inventory') {
+      if (modeParam === 'sales' || modeParam === 'inventory' || modeParam === 'stocks') {
         return modeParam;
       }
     }
@@ -99,10 +104,22 @@ export const App: React.FC = () => {
             : 'Inventory & SKU velocity analysis from Excel: manual or date period duration, ABC fast/medium/slow classification, King Items, and suggested order quantities.'
         );
       }
+    } else if (appMode === 'stocks') {
+      document.title = isAr
+        ? 'تحليل البورصة وإدارة المحفظة والخطط الاسترشادية | DataSolu BI Pro'
+        : 'Stock Market Analysis, Portfolio Tracker & Trade Plans | DataSolu BI Pro';
+      if (metaDesc) {
+        metaDesc.setAttribute(
+          'content',
+          isAr
+            ? 'منصة تحليل البورصة الاسترشادية المتكاملة: ترشيحات الموقع المفضلة، الرأي الشخصي، تتبع شراء وبيع الأسهم بالمحفظة، وبناء الخطط المحتملة والسيناريوهات (للاسترشاد فقط بدون توصيات).'
+            : 'Integrated Stock Market Guidance Platform: Featured picks, personal thesis notes, buy/sell portfolio tracking, and risk-managed trade plans (for guidance only).'
+        );
+      }
     } else {
       document.title = isAr
-        ? 'DataSolu BI Pro | منصة تحليل المبيعات والمخزون والأصناف الأكثر مبيعاً من الإكسيل'
-        : 'DataSolu BI Pro | Smart Sales & Inventory Excel Analytics Platform';
+        ? 'DataSolu BI Pro | منصة تحليل المبيعات والمخزون والبورصة المتكاملة'
+        : 'DataSolu BI Pro | Smart Sales, Inventory & Stock Market Analytics Platform';
     }
   }, [appMode, isAr]);
 
@@ -298,8 +315,8 @@ export const App: React.FC = () => {
               </p>
             </div>
 
-            {/* Dual Choice Cards: Sales Analysis vs Inventory Analysis */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Triple Choice Cards: Sales Analysis vs Inventory Analysis vs Stock Market Analysis */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* OPTION 1: SALES ANALYSIS CARD (تحليل المبيعات) */}
               <div
                 onClick={() => {
@@ -477,6 +494,91 @@ export const App: React.FC = () => {
                   </span>
                 </div>
               </div>
+
+              {/* OPTION 3: STOCK MARKET & PORTFOLIO INTELLIGENCE CARD (قسم تحليل البورصة المتكامل) */}
+              <div
+                onClick={() => {
+                  setAppMode('stocks');
+                  setActiveTab('stocks_overview');
+                }}
+                className="cursor-pointer group relative rounded-3xl bg-white dark:bg-slate-800/90 border-2 border-indigo-500/40 hover:border-indigo-500 dark:border-indigo-500/30 dark:hover:border-indigo-400 p-7 sm:p-8 shadow-lg hover:shadow-2xl hover:shadow-indigo-500/10 transition-all duration-300 flex flex-col justify-between overflow-hidden"
+              >
+                <div className="absolute -top-24 -end-24 w-56 h-56 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none group-hover:bg-indigo-500/20 transition-all" />
+
+                <div className="space-y-6 relative z-10">
+                  <div className="flex items-center justify-between">
+                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-500 text-white flex items-center justify-center shadow-lg shadow-indigo-500/30 group-hover:scale-110 transition-transform">
+                      <CandlestickChart className="w-8 h-8" />
+                    </div>
+                    <span className="px-3 py-1 rounded-full text-[11px] font-extrabold bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-800">
+                      {isAr ? 'للاسترشاد فقط — بدون توصيات' : 'Guidance Only — No Advice'}
+                    </span>
+                  </div>
+
+                  <div>
+                    <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                      {isAr
+                        ? '3. قسم تحليل البورصة والمحفظة والخطط المتكامل'
+                        : '3. Stock Market, Portfolio & Trade Plans Hub'}
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-2 leading-relaxed">
+                      {isAr
+                        ? 'منصة متكاملة لمتابعة ترشيحات الموقع الاسترشادية، تدوين رأيك الشخصي، تسجيل عمليات شراء وبيع الأسهم وتتبع أرباح المحفظة، وبناء الخطط المحتملة والسيناريوهات مع حفظ كامل للمعلومات.'
+                        : 'Integrated stock platform: Site featured picks, personal opinions, buy/sell portfolio tracking, and risk-managed trade plans with auto-save.'}
+                    </p>
+                  </div>
+
+                  {/* Feature Checklist */}
+                  <div className="space-y-2.5 pt-2 border-t border-slate-100 dark:border-slate-700/70">
+                    <div className="flex items-center gap-2.5 text-xs font-bold text-slate-700 dark:text-slate-200">
+                      <Crown className="w-4 h-4 text-indigo-500 flex-shrink-0" />
+                      <span>
+                        {isAr
+                          ? 'ترشيحات المفضلة للموقع (استرشادية) مع تدوين وحفظ الرأي الشخصي لكل سهم'
+                          : 'Site Featured Spotlights + Personal Opinion & Conviction Journal'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-xs font-bold text-slate-700 dark:text-slate-200">
+                      <Wallet className="w-4 h-4 text-indigo-500 flex-shrink-0" />
+                      <span>
+                        {isAr
+                          ? 'شراء وبيع الأسهم وتتبع متوسط التكلفة والأرباح المحققة وغير المحققة'
+                          : 'Buy & Sell Execution Tracker with Weighted Avg Cost & Live P&L'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-xs font-bold text-slate-700 dark:text-slate-200">
+                      <Compass className="w-4 h-4 text-indigo-500 flex-shrink-0" />
+                      <span>
+                        {isAr
+                          ? 'وضع الخطط المحتملة والسيناريوهات الثلاثة وحاسبة حجم الصفقة والمخاطر'
+                          : 'Trade Plan Builder with Bull/Base/Bear Scenarios & R:R Calculator'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-xs font-bold text-slate-700 dark:text-slate-200">
+                      <ShieldAlert className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                      <span>
+                        {isAr
+                          ? 'حفظ تلقائي للمعلومات + إخلاء مسؤولية واضح (للاسترشاد بدون توصيات)'
+                          : 'Auto-saved locally + JSON/Excel backup & clear Legal Disclaimer'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-8 pt-4 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    {isAr ? 'حفظ تلقائي + تصدير Excel' : 'Auto-Save + Excel Export'}
+                  </span>
+                  <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 group-hover:bg-indigo-700 text-white text-xs sm:text-sm font-extrabold shadow-md shadow-indigo-600/20 transition-all">
+                    <span>{isAr ? 'الدخول لتحليل البورصة' : 'Open Stock Market Hub'}</span>
+                    {dir === 'rtl' ? (
+                      <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                    ) : (
+                      <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    )}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -618,21 +720,44 @@ export const App: React.FC = () => {
             )}
           </div>
         )}
+
+        {/* =====================================================================
+            VIEW 4: STOCK MARKET & PORTFOLIO INTELLIGENCE WORKSPACE (قسم تحليل البورصة المتكامل)
+           ===================================================================== */}
+        {appMode === 'stocks' && (
+          <div id="dashboard-export-area" className="space-y-8">
+            <StockMarketAnalysis
+              activeSubTab={activeTab}
+              setActiveSubTab={setActiveTab}
+            />
+          </div>
+        )}
       </main>
 
       {/* Footer */}
       <footer className="border-t border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 py-6 mt-12 transition-colors">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-wrap items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-700 dark:text-slate-200">DataSolu</span>
-            <span>-</span>
-            <span>{t.app.tagline}</span>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-3 text-xs text-slate-500 dark:text-slate-400">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-slate-700 dark:text-slate-200">DataSolu</span>
+              <span>-</span>
+              <span>{t.app.tagline}</span>
+            </div>
+            <div>
+              <span>
+                {isAr
+                  ? 'جميع البيانات تعالج وتحفظ محلياً داخل جهازك بأمان 100%'
+                  : 'All data processed & saved locally on your device'}
+              </span>
+            </div>
           </div>
-          <div>
+
+          <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/80 text-[11px] text-amber-800 dark:text-amber-300/90 flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4 flex-shrink-0 text-amber-500" />
             <span>
               {isAr
-                ? 'جميع البيانات تعالج محلياً داخل جهازك بأمان 100%'
-                : 'All data processed locally & securely'}
+                ? 'إخلاء مسؤولية قانوني: جميع تحليلات الأسهم والمؤشرات وترشيحات الموقع وأدوات البيع والشراء المعروضة في المنصة هي لأغراض الاسترشاد التحليلي وتنظيم المحفظة الشخصية فقط، ولا تُعد بأي حال توصية مباشرة بالبيع أو الشراء.'
+                : 'Legal Disclaimer: All stock analyses, indicators, featured picks, and portfolio tools on this platform are strictly for informational guidance and personal organization, and do NOT constitute buy or sell recommendations.'}
             </span>
           </div>
         </div>

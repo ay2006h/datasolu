@@ -10,6 +10,7 @@ import {
   TrendingUp,
   Package,
   LayoutGrid,
+  CandlestickChart,
 } from 'lucide-react';
 import { useI18n } from '../locales/i18nContext';
 import { AppMode } from '../types';
@@ -54,7 +55,19 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'table', label: t.nav.dataViewer },
   ];
 
-  const navItems = appMode === 'inventory' ? inventoryNavItems : salesNavItems;
+  const stocksNavItems = [
+    { id: 'stocks_overview', label: isAr ? 'ترشيحات الموقع وفحص الأسهم' : 'Site Picks & Screener' },
+    { id: 'stocks_portfolio', label: isAr ? 'المحفظة والشراء والبيع' : 'Portfolio & Buy/Sell' },
+    { id: 'stocks_plans', label: isAr ? 'الخطط المحتملة والسيناريوهات' : 'Trade Plans & Scenarios' },
+    { id: 'stocks_opinions', label: isAr ? 'الرأي الشخصي والرؤى' : 'Personal Opinions & Visions' },
+  ];
+
+  const navItems =
+    appMode === 'inventory'
+      ? inventoryNavItems
+      : appMode === 'stocks'
+      ? stocksNavItems
+      : salesNavItems;
 
   return (
     <header className="sticky top-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors">
@@ -128,13 +141,28 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <Package className="w-3.5 h-3.5" />
                 <span>{isAr ? 'تحليل المخزون والأصناف' : 'Inventory Analysis'}</span>
               </button>
+
+              <button
+                onClick={() => {
+                  setAppMode('stocks');
+                  setActiveTab('stocks_overview');
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all ${
+                  appMode === 'stocks'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-indigo-500'
+                }`}
+              >
+                <CandlestickChart className="w-3.5 h-3.5" />
+                <span>{isAr ? 'تحليل البورصة والأسهم' : 'Stock Market'}</span>
+              </button>
             </div>
           </div>
 
           {/* Action Buttons */}
           <div className="flex items-center gap-2">
             {/* Load Sample / Upload when inside a workspace */}
-            {appMode !== 'home' && (
+            {appMode !== 'home' && appMode !== 'stocks' && (
               <button
                 onClick={onUploadClick}
                 className="hidden lg:flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
@@ -153,7 +181,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            {appMode !== 'home' && !hasData && (
+            {appMode !== 'home' && appMode !== 'stocks' && !hasData && (
               <button
                 onClick={onLoadSample}
                 className="flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-lg bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-700 hover:to-indigo-700 text-white shadow-md shadow-brand-500/20 transition-all hover:scale-[1.02]"
@@ -163,7 +191,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            {appMode !== 'home' && hasData && (
+            {appMode !== 'home' && (hasData || appMode === 'stocks') && (
               <button
                 onClick={onExportPdf}
                 className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-all"
@@ -199,8 +227,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Sub-navigation bar when inside Sales or Inventory mode and data is loaded */}
-        {appMode !== 'home' && hasData && (
+        {/* Sub-navigation bar when inside Sales, Inventory or Stocks mode */}
+        {appMode !== 'home' && (hasData || appMode === 'stocks') && (
           <div className="flex items-center gap-1 overflow-x-auto py-2 border-t border-slate-100 dark:border-slate-800/80">
             {navItems.map((item) => (
               <button
@@ -210,6 +238,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                   activeTab === item.id
                     ? appMode === 'inventory'
                       ? 'bg-amber-500 text-slate-950 shadow-sm'
+                      : appMode === 'stocks'
+                      ? 'bg-indigo-600 text-white shadow-sm'
                       : 'bg-emerald-600 text-white shadow-sm'
                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
