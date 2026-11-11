@@ -235,6 +235,7 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
   const [scanningProgressText, setScanningProgressText] = useState<string>('');
   const [autoMonitorEnabled, setAutoMonitorEnabled] = useState<boolean>(false);
   const [showCatalogModal, setShowCatalogModal] = useState<boolean>(false);
+  const [historyDaysLimit, setHistoryDaysLimit] = useState<number>(15);
 
   // Auto-save to internal localStorage whenever any state changes
   useEffect(() => {
@@ -310,31 +311,37 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
     if (!rawSymbol.trim()) return;
     setIsScanningMarket(true);
     setScanningProgressText(
-      isAr ? `جاري فحص السعر الفعلي والمؤشرات لسهم (${rawSymbol})...` : `Scanning ${rawSymbol}...`
+      isAr
+        ? `جاري فحص السعر الفعلي وجلب بيانات الأيام السابقة لسهم (${rawSymbol})...`
+        : `Scanning live price & previous days' history for ${rawSymbol}...`
     );
 
     try {
       const existing = stocks.find(
-        (s) => s.symbol.toUpperCase() === rawSymbol.trim().toUpperCase()
+        (s) =>
+          s.symbol.toUpperCase() === rawSymbol.trim().toUpperCase() ||
+          s.nameAr === rawSymbol.trim()
       );
       const liveStock = await fetchLiveStockMarketData(rawSymbol, market, {
         ...catalogInfo,
         ...existing,
       });
 
+      let targetStockId = liveStock.id;
       setStocks((prev) => {
         const idx = prev.findIndex(
           (item) => item.symbol.toUpperCase() === liveStock.symbol.toUpperCase()
         );
         if (idx >= 0) {
+          targetStockId = prev[idx].id;
           const updated = [...prev];
-          updated[idx] = liveStock;
+          updated[idx] = { ...liveStock, id: prev[idx].id };
           return updated;
         }
         return [liveStock, ...prev];
       });
 
-      setSelectedStockId(liveStock.id);
+      setSelectedStockId(targetStockId);
 
       // Record in internal scan log
       const logEntry: InternalScanLogEntry = {
@@ -357,10 +364,11 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
       setScanLogs((prev) => [logEntry, ...prev.slice(0, 49)]);
 
       setLiveTickerInput('');
+      const daysCount = liveStock.historicalDays?.length || liveStock.priceHistory.length;
       showToast(
         isAr
-          ? `تم فحص وتحديث السعر الفعلي لسهم (${liveStock.nameAr}: ${liveStock.currentPrice} ${liveStock.currency}) وتحديث توصيته الاسترشادية وحفظه داخلياً`
-          : `Live scan complete for ${liveStock.symbol}: ${liveStock.currentPrice} ${liveStock.currency}`
+          ? `تم فحص وتحديث السعر الفعلي لسهم (${liveStock.nameAr}: ${liveStock.currentPrice} ${liveStock.currency}) وجلب بيانات آخر (${daysCount}) جلسة سابقة وحفظها داخلياً`
+          : `Live scan complete for ${liveStock.symbol}: ${liveStock.currentPrice} ${liveStock.currency} (${daysCount} historical sessions)`
       );
     } catch (err: any) {
       showToast(
@@ -1016,11 +1024,14 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
         'رمز السهم': s.symbol,
         'اسم السهم': s.nameAr,
         'السعر الحالي': s.currentPrice,
+        'إغلاق الجلسة السابقة': s.previousClose,
+        'التغير اليومي %': `${s.changePercent}%`,
         'القيمة العادلة الاسترشادية': s.estimatedFairValue,
         'الدعم الأول': s.support1,
         'المقاومة الأولى': s.resistance1,
         'التقييم التحليلي (من 100)': s.siteAnalyticalScore,
         'من مفضلة الموقع؟': s.isSiteFavorite ? 'نعم ⭐' : 'لا',
+        'عدد الأيام السابقة المسجلة': s.historicalDays?.length || s.priceHistory.length,
         'الرأي الشخصي': op ? op.stance : '-',
         'الهدف الشخصي': op ? op.personalTargetPrice : '-',
         'ملاحظات الرأي الشخصي': op ? op.thesisNotes : s.siteRationaleAr,
@@ -1031,11 +1042,79 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
     );
     XLSX.utils.book_append_sheet(wb, wsOpinions, isAr ? 'الأسهم والرأي الشخصي' : 'Stocks_Opinions');
 
+    // Sheet 5: Historical Previous Days Data across all stocks
+    const historyRows: Record<string, any>[] = [];
+    stocks.forEach((s) => {
+      if (s.historicalDays && s.historicalDays.length > 0) {
+        s.historicalDays.forEach((d) => {
+          historyRows.push({
+            'رمز السهم': s.symbol,
+            'اسم السهم': s.nameAr,
+            'العملة': s.currency,
+            'تاريخ الجلسة': d.date,
+            'سعر الافتتاح': d.open,
+            'أعلى سعر': d.high,
+            'أدنى سعر': d.low,
+            'سعر الإغلاق': d.close,
+            'التغير اليومي': d.change,
+            'نسبة التغير %': `${d.changePercent}%`,
+            'حجم التداول': d.volume,
+          });
+        });
+      }
+    });
+    if (historyRows.length > 0) {
+      const wsHist = XLSX.utils.json_to_sheet(historyRows);
+      XLSX.utils.book_append_sheet(
+        wb,
+        wsHist,
+        isAr ? 'بيانات الأيام السابقة' : 'Historical_Days'
+      );
+    }
+
     XLSX.writeFile(
       wb,
       `تقرير_البورصة_والمحفظة_والخطط_DataSolu_${new Date().toISOString().slice(0, 10)}.xlsx`
     );
     showToast(isAr ? 'تم تصدير ملف الإكسيل المتكامل بنجاح' : 'Excel exported successfully');
+  };
+
+  // Export single stock's Previous Days' Historical Data to Excel
+  const handleExportStockHistoryExcel = (stock: StockItem) => {
+    const days = stock.historicalDays || [];
+    if (days.length === 0) {
+      showToast(
+        isAr
+          ? 'يرجى الضغط على زر تحديث السعر من السوق أولاً لجلب بيانات الأيام السابقة'
+          : 'Please scan the stock from the market first to fetch historical days'
+      );
+      return;
+    }
+    const wb = XLSX.utils.book_new();
+    const rows = days.map((d) => ({
+      'رمز السهم': stock.symbol,
+      'اسم السهم': stock.nameAr,
+      'العملة': stock.currency,
+      'تاريخ الجلسة': d.date,
+      'سعر الافتتاح (Open)': d.open,
+      'أعلى سعر (High)': d.high,
+      'أدنى سعر (Low)': d.low,
+      'سعر الإغلاق (Close)': d.close,
+      'التغير اليومي': d.change,
+      'نسبة التغير اليومي %': `${d.changePercent}%`,
+      'حجم التداول (Volume)': d.volume,
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, isAr ? 'بيانات الأيام السابقة' : 'Historical_OHLCV');
+    XLSX.writeFile(
+      wb,
+      `بيانات_الأيام_السابقة_${stock.symbol}_${new Date().toISOString().slice(0, 10)}.xlsx`
+    );
+    showToast(
+      isAr
+        ? `تم تحميل ملف إكسيل بيانات الأيام السابقة لسهم (${stock.nameAr}) بنجاح`
+        : `Downloaded historical data Excel for ${stock.symbol}`
+    );
   };
 
   // Import Stocks from Excel Sheet
@@ -1657,7 +1736,7 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
               <option value="saudi">{isAr ? 'السوق السعودي (تداول .SR)' : 'Saudi (.SR)'}</option>
               <option value="egypt">{isAr ? 'البورصة المصرية (EGX .CA)' : 'Egypt (.CA)'}</option>
               <option value="us">{isAr ? 'السوق الأمريكي (US)' : 'US Market'}</option>
-              <option value="uae">{isAr ? 'سوق الإمارات (.DU / .AD)' : 'UAE Market'}</option>
+              <option value="uae">{isAr ? 'سوق الإمارات (DFM/ADX .AE)' : 'UAE Market (.AE)'}</option>
             </select>
 
             <input
@@ -1666,8 +1745,8 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
               onChange={(e) => setLiveTickerInput(e.target.value)}
               placeholder={
                 isAr
-                  ? 'اكتب رقم أو رمز السهم (مثال: 1120 أو 2222 أو COMI أو AAPL أو NVDA)...'
-                  : 'Enter ticker (e.g. 1120, 2222, COMI, AAPL, NVDA)...'
+                  ? 'اكتب رقم أو رمز أو اسم السهم (مثال: 1120 أو الراجحي أو 2222 أو ارامكو أو COMI أو AAPL)...'
+                  : 'Enter ticker or stock name (e.g. 1120, 2222, COMI, AAPL, NVDA, EMAAR)...'
               }
               className="flex-1 px-4 py-2.5 rounded-xl bg-slate-900/90 border border-white/20 text-xs font-bold text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400"
             />
@@ -1680,8 +1759,8 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
               <RefreshCw className={`w-4 h-4 ${isScanningMarket ? 'animate-spin' : ''}`} />
               <span>
                 {isAr
-                  ? 'فحص السعر الفعلي وتحديث التوصية'
-                  : 'Scan Live Price & Signal'}
+                  ? 'فحص السعر وبيانات الأيام السابقة'
+                  : 'Scan Live Price & History'}
               </span>
             </button>
           </form>
@@ -2150,11 +2229,21 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                         >
                           {getSignalBadge(selectedStock.analyticalSignal).label}
                         </span>
+                        {selectedStock.lastUpdatedAt && (
+                          <span className="px-2.5 py-0.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[11px] font-bold">
+                            {isAr
+                              ? `آخر فحص للسوق: ${selectedStock.lastUpdatedAt}`
+                              : `Updated: ${selectedStock.lastUpdatedAt}`}
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                         {isAr
-                          ? 'فحص تحليلي مفصل لحركة السعر الفعلي، الدعوم والمقاومات، وتغير الإشارة الاسترشادية'
-                          : 'Detailed analytical view of live price action, support/resistance, and dynamic signals'}
+                          ? `فحص تحليلي مفصل لحركة السعر الفعلي، بيانات وأسعار الأيام السابقة (${
+                              selectedStock.historicalDays?.length ||
+                              selectedStock.priceHistory.length
+                            } جلسة)، الدعوم والمقاومات، وتغير الإشارة الاسترشادية`
+                          : 'Detailed analytical view of live price action, previous days historical OHLCV data, support/resistance, and dynamic signals'}
                       </p>
                     </div>
 
@@ -2169,7 +2258,11 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                         <RefreshCw
                           className={`w-3.5 h-3.5 ${isScanningMarket ? 'animate-spin' : ''}`}
                         />
-                        <span>{isAr ? 'تحديث السعر من السوق' : 'Scan Live Price'}</span>
+                        <span>
+                          {isAr
+                            ? 'تحديث السعر وبيانات الأيام السابقة'
+                            : 'Scan Live Price & History'}
+                        </span>
                       </button>
 
                       <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
@@ -2209,23 +2302,27 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                     <div className="lg:col-span-7 h-72 bg-slate-50/70 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
                       <Line
                         data={{
-                          labels: selectedStock.priceHistory.map((_, idx) =>
-                            isAr
-                              ? `جلسة ${idx + 1}`
-                              : `T-${selectedStock.priceHistory.length - idx}`
-                          ),
+                          labels:
+                            selectedStock.priceDates &&
+                            selectedStock.priceDates.length === selectedStock.priceHistory.length
+                              ? selectedStock.priceDates
+                              : selectedStock.priceHistory.map((_, idx) =>
+                                  isAr
+                                    ? `جلسة ${idx + 1}`
+                                    : `T-${selectedStock.priceHistory.length - idx}`
+                                ),
                           datasets: [
                             {
                               label: isAr
-                                ? `سعر السهم (${selectedStock.currency})`
-                                : `Price (${selectedStock.currency})`,
+                                ? `سعر إغلاق السهم (${selectedStock.currency})`
+                                : `Close Price (${selectedStock.currency})`,
                               data: selectedStock.priceHistory,
                               borderColor: '#4f46e5',
                               backgroundColor: 'rgba(79, 70, 229, 0.15)',
                               borderWidth: 3,
                               fill: true,
-                              tension: 0.35,
-                              pointRadius: 4,
+                              tension: 0.3,
+                              pointRadius: 3,
                             },
                             {
                               label: isAr ? 'الهدف الاسترشادي' : 'Est. Fair Value',
@@ -2263,7 +2360,10 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                           },
                           scales: {
                             x: {
-                              ticks: { color: isDark ? '#94a3b8' : '#64748b' },
+                              ticks: {
+                                color: isDark ? '#94a3b8' : '#64748b',
+                                maxTicksLimit: 8,
+                              },
                               grid: { display: false },
                             },
                             y: {
@@ -2312,13 +2412,259 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
 
                       <div className="p-3.5 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60">
                         <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300 block">
-                          {isAr ? 'نطاق 52 أسبوعاً' : '52-Week Range'}
+                          {isAr
+                            ? 'إغلاق الجلسة السابقة ونطاق 52 أسبوعاً'
+                            : 'Prev Close & 52W Range'}
                         </span>
                         <div className="text-sm font-black text-slate-900 dark:text-white mt-1">
-                          {selectedStock.low52W} — {selectedStock.high52W}
+                          {isAr ? 'إغلاق سابق:' : 'Prev:'} {selectedStock.previousClose}{' '}
+                          {selectedStock.currency}
                         </div>
+                        <span className="text-[10px] text-slate-500">
+                          52W: {selectedStock.low52W} — {selectedStock.high52W}
+                        </span>
                       </div>
                     </div>
+                  </div>
+
+                  {/* =================================================================
+                      PREVIOUS DAYS' HISTORICAL OHLCV DATA TABLE (بيانات وأسعار الأيام السابقة للسهم)
+                     ================================================================= */}
+                  <div className="pt-4 border-t border-slate-100 dark:border-slate-700/70 space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-xl bg-indigo-600/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                          <History className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm sm:text-base font-black text-slate-900 dark:text-white">
+                            {isAr
+                              ? `سجل بيانات وأسعار الأيام السابقة لسهم (${selectedStock.nameAr} - ${selectedStock.symbol})`
+                              : `Previous Days' Historical Prices & OHLCV Data (${selectedStock.symbol})`}
+                          </h4>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                            {isAr
+                              ? 'يعرض أسعار الافتتاح، أعلى وأدنى سعر، سعر الإغلاق، التغير اليومي، وحجم التداول للجلسات السابقة من السوق الفعلي'
+                              : 'Daily Open, High, Low, Close, Daily Change %, and Volume for previous trading sessions'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {[
+                          { count: 7, label: isAr ? 'آخر 7 جلسات' : 'Last 7 Days' },
+                          { count: 15, label: isAr ? 'آخر 15 جلسة' : 'Last 15 Days' },
+                          { count: 30, label: isAr ? 'آخر 30 جلسة' : 'Last 30 Days' },
+                          { count: 90, label: isAr ? 'كل الجلسات' : 'All Sessions' },
+                        ].map((opt) => (
+                          <button
+                            key={opt.count}
+                            onClick={() => setHistoryDaysLimit(opt.count)}
+                            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                              historyDaysLimit === opt.count
+                                ? 'bg-indigo-600 text-white shadow-sm'
+                                : 'bg-slate-100 dark:bg-slate-700/70 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+
+                        {selectedStock.historicalDays && selectedStock.historicalDays.length > 0 && (
+                          <button
+                            onClick={() => handleExportStockHistoryExcel(selectedStock)}
+                            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold flex items-center gap-1 shadow-sm"
+                          >
+                            <FileSpreadsheet className="w-3.5 h-3.5" />
+                            <span>
+                              {isAr ? 'تحميل بيانات الأيام السابقة Excel' : 'Export History Excel'}
+                            </span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {selectedStock.historicalDays && selectedStock.historicalDays.length > 0 ? (
+                      <>
+                        {/* Period Summary Strip */}
+                        {(() => {
+                          const visibleDays = selectedStock.historicalDays.slice(
+                            0,
+                            historyDaysLimit
+                          );
+                          const periodHigh = Math.max(...visibleDays.map((d) => d.high));
+                          const periodLow = Math.min(...visibleDays.map((d) => d.low));
+                          const avgVol = Math.round(
+                            visibleDays.reduce((acc, d) => acc + (d.volume || 0), 0) /
+                              Math.max(1, visibleDays.length)
+                          );
+                          const oldestInPeriod =
+                            visibleDays[visibleDays.length - 1]?.close ||
+                            selectedStock.currentPrice;
+                          const periodChangePct =
+                            oldestInPeriod > 0
+                              ? Number(
+                                  (
+                                    ((selectedStock.currentPrice - oldestInPeriod) /
+                                      oldestInPeriod) *
+                                    100
+                                  ).toFixed(2)
+                                )
+                              : 0;
+
+                          return (
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/70 border border-slate-200/80 dark:border-slate-700/70">
+                                <span className="text-[10px] font-bold text-slate-400 block">
+                                  {isAr
+                                    ? `التغير خلال آخر (${visibleDays.length}) جلسة`
+                                    : `${visibleDays.length}-Session Change`}
+                                </span>
+                                <span
+                                  className={`text-sm font-black mt-0.5 block ${
+                                    periodChangePct >= 0 ? 'text-emerald-600' : 'text-rose-600'
+                                  }`}
+                                >
+                                  {periodChangePct >= 0 ? '+' : ''}
+                                  {periodChangePct}% ({oldestInPeriod} ←{' '}
+                                  {selectedStock.currentPrice})
+                                </span>
+                              </div>
+                              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/70 border border-slate-200/80 dark:border-slate-700/70">
+                                <span className="text-[10px] font-bold text-slate-400 block">
+                                  {isAr ? 'أعلى سعر خلال الفترة' : 'Period High'}
+                                </span>
+                                <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 mt-0.5 block">
+                                  {periodHigh} {selectedStock.currency}
+                                </span>
+                              </div>
+                              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/70 border border-slate-200/80 dark:border-slate-700/70">
+                                <span className="text-[10px] font-bold text-slate-400 block">
+                                  {isAr ? 'أدنى سعر خلال الفترة' : 'Period Low'}
+                                </span>
+                                <span className="text-sm font-black text-rose-600 dark:text-rose-400 mt-0.5 block">
+                                  {periodLow} {selectedStock.currency}
+                                </span>
+                              </div>
+                              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/70 border border-slate-200/80 dark:border-slate-700/70">
+                                <span className="text-[10px] font-bold text-slate-400 block">
+                                  {isAr ? 'متوسط حجم التداول اليومي' : 'Avg Daily Volume'}
+                                </span>
+                                <span className="text-sm font-black text-indigo-600 dark:text-indigo-400 mt-0.5 block">
+                                  {avgVol.toLocaleString()}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        {/* Historical Days Table */}
+                        <div className="max-h-80 overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-700/80">
+                          <table className="w-full text-xs text-start">
+                            <thead className="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-300 font-extrabold sticky top-0 z-10 border-b border-slate-200 dark:border-slate-700">
+                              <tr>
+                                <th className="py-2.5 px-3 text-start">
+                                  {isAr ? 'تاريخ الجلسة' : 'Date'}
+                                </th>
+                                <th className="py-2.5 px-3 text-center">
+                                  {isAr ? 'الافتتاح (Open)' : 'Open'}
+                                </th>
+                                <th className="py-2.5 px-3 text-center">
+                                  {isAr ? 'الأعلى (High)' : 'High'}
+                                </th>
+                                <th className="py-2.5 px-3 text-center">
+                                  {isAr ? 'الأدنى (Low)' : 'Low'}
+                                </th>
+                                <th className="py-2.5 px-3 text-center">
+                                  {isAr ? 'الإغلاق (Close)' : 'Close'}
+                                </th>
+                                <th className="py-2.5 px-3 text-center">
+                                  {isAr ? 'التغير اليومي' : 'Daily Change'}
+                                </th>
+                                <th className="py-2.5 px-3 text-center">
+                                  {isAr ? 'حجم التداول (Volume)' : 'Volume'}
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                              {selectedStock.historicalDays
+                                .slice(0, historyDaysLimit)
+                                .map((day, idx) => (
+                                  <tr
+                                    key={`${day.date}-${idx}`}
+                                    className={
+                                      idx === 0
+                                        ? 'bg-indigo-50/60 dark:bg-indigo-950/30 font-bold'
+                                        : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                                    }
+                                  >
+                                    <td className="py-2.5 px-3 font-mono font-bold text-slate-800 dark:text-slate-200">
+                                      {day.date}{' '}
+                                      {idx === 0 && (
+                                        <span className="ms-1 px-1.5 py-0.5 rounded bg-indigo-600 text-white text-[9px] font-black">
+                                          {isAr ? 'أحدث جلسة' : 'Latest'}
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-center text-slate-700 dark:text-slate-300">
+                                      {day.open}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-center text-emerald-600 dark:text-emerald-400 font-bold">
+                                      {day.high}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-center text-rose-600 dark:text-rose-400 font-bold">
+                                      {day.low}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-center font-black text-slate-900 dark:text-white">
+                                      {day.close} {selectedStock.currency}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-center">
+                                      <span
+                                        className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md font-extrabold ${
+                                          day.changePercent >= 0
+                                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                            : 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                                        }`}
+                                      >
+                                        {day.change >= 0 ? '+' : ''}
+                                        {day.change} ({day.changePercent >= 0 ? '+' : ''}
+                                        {day.changePercent}%)
+                                      </span>
+                                    </td>
+                                    <td className="py-2.5 px-3 text-center font-mono text-slate-600 dark:text-slate-400">
+                                      {day.volume ? day.volume.toLocaleString() : '-'}
+                                    </td>
+                                  </tr>
+                                ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="p-6 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-dashed border-indigo-300 dark:border-indigo-700 text-center space-y-3">
+                        <p className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                          {isAr
+                            ? 'لم يتم جلب جدول بيانات الأيام السابقة التفصيلي لهذا السهم بعد. اضغط على الزر بالأسفل لفحص السهم وجلب أسعار وتداولات الأيام السابقة من السوق مباشرة:'
+                            : 'Historical daily OHLCV data has not been fetched for this stock yet. Click below to fetch it live from the market:'}
+                        </p>
+                        <button
+                          onClick={() =>
+                            handleFetchSingleLiveStock(selectedStock.symbol, selectedStock.market)
+                          }
+                          disabled={isScanningMarket}
+                          className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black inline-flex items-center gap-2 shadow-md"
+                        >
+                          <RefreshCw
+                            className={`w-4 h-4 ${isScanningMarket ? 'animate-spin' : ''}`}
+                          />
+                          <span>
+                            {isAr
+                              ? `جلب أسعار وبيانات الأيام السابقة لسهم (${selectedStock.symbol}) الآن`
+                              : `Fetch Previous Days' Data for ${selectedStock.symbol}`}
+                          </span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -2702,12 +3048,26 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
           </div>
 
           <div className="rounded-3xl bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 shadow-md overflow-hidden">
-            <div className="p-5 border-b border-slate-100 dark:border-slate-700/70">
+            <div className="p-5 border-b border-slate-100 dark:border-slate-700/70 flex flex-wrap items-center justify-between gap-3">
               <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
                 {isAr
                   ? 'تتبع الأسهم المملوكة حالياً بالمحفظة (حساب تلقائي لمتوسط التكلفة والأرباح)'
                   : 'Active Portfolio Holdings & Live P&L Tracker'}
               </h3>
+              {stocks.length > 0 && (
+                <button
+                  onClick={handleScanAllStocksLive}
+                  disabled={isScanningMarket}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black flex items-center gap-1.5 shadow-sm"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isScanningMarket ? 'animate-spin' : ''}`} />
+                  <span>
+                    {isAr
+                      ? 'فحص وتحديث أسعار أسهم المحفظة الفعلية الآن'
+                      : 'Scan & Update Portfolio Prices Now'}
+                  </span>
+                </button>
+              )}
             </div>
 
             <div className="overflow-x-auto">
@@ -2795,6 +3155,18 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                           <td className="py-3.5 px-4 text-center">
                             {stObj && (
                               <div className="inline-flex items-center gap-1.5">
+                                <button
+                                  onClick={() =>
+                                    handleFetchSingleLiveStock(stObj.symbol, stObj.market)
+                                  }
+                                  disabled={isScanningMarket}
+                                  className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 hover:bg-indigo-100"
+                                  title={
+                                    isAr ? 'فحص وتحديث السعر الفعلي للسهم' : 'Scan Live Price'
+                                  }
+                                >
+                                  <RefreshCw className="w-3.5 h-3.5" />
+                                </button>
                                 <button
                                   onClick={() => openTradeModal(stObj, 'buy')}
                                   className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold"

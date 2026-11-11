@@ -1,5 +1,6 @@
 import {
   StockItem,
+  StockHistoricalDay,
   MarketRegion,
   AnalyticalSignal,
   SitePickCategory,
@@ -16,20 +17,24 @@ export interface PopularTickerInfo {
 }
 
 /**
- * Reference catalog of real market tickers (NOT loaded by default; used only when the user searches or clicks to fetch live market data).
+ * Reference catalog of real market tickers (used when searching by Arabic/English name or symbol).
  */
 export const REAL_MARKET_TICKER_CATALOG: PopularTickerInfo[] = [
   // Saudi Tadawul (.SR)
   { symbol: '1120.SR', nameAr: 'مصرف الراجحي', nameEn: 'Al Rajhi Bank', market: 'saudi', currency: 'SAR', sectorAr: 'البنوك والخدمات المالية', sectorEn: 'Banking' },
   { symbol: '2222.SR', nameAr: 'أرامكو السعودية', nameEn: 'Saudi Aramco', market: 'saudi', currency: 'SAR', sectorAr: 'الطاقة والنفط', sectorEn: 'Energy' },
   { symbol: '1180.SR', nameAr: 'البنك الأهلي السعودي', nameEn: 'SNB Bank', market: 'saudi', currency: 'SAR', sectorAr: 'البنوك والخدمات المالية', sectorEn: 'Banking' },
-  { symbol: '7010.SR', nameAr: 'الاتصالات السعودية (STC)', nameEn: 'STC Group', market: 'saudi', currency: 'SAR', sectorAr: 'الاتصالات وتقنية المعلومات', sectorEn: 'Telecom' },
+  { symbol: '7010.SR', nameAr: 'الاتصالات السعودية (إس تي سي)', nameEn: 'STC Group', market: 'saudi', currency: 'SAR', sectorAr: 'الاتصالات وتقنية المعلومات', sectorEn: 'Telecom' },
   { symbol: '2010.SR', nameAr: 'سابك للصناعات الأساسية', nameEn: 'SABIC', market: 'saudi', currency: 'SAR', sectorAr: 'البتروكيماويات والمواد الأساسية', sectorEn: 'Basic Materials' },
   { symbol: '1150.SR', nameAr: 'مصرف الإنماء', nameEn: 'Alinma Bank', market: 'saudi', currency: 'SAR', sectorAr: 'البنوك والخدمات المالية', sectorEn: 'Banking' },
   { symbol: '7203.SR', nameAr: 'علم لأمن المعلومات', nameEn: 'Elm Co.', market: 'saudi', currency: 'SAR', sectorAr: 'التقنية والبرمجيات', sectorEn: 'Technology' },
   { symbol: '1211.SR', nameAr: 'معادن (التعدين العربية السعودية)', nameEn: 'Maaden', market: 'saudi', currency: 'SAR', sectorAr: 'التعدين والموارد', sectorEn: 'Mining' },
   { symbol: '2280.SR', nameAr: 'شركة المراعي', nameEn: 'Almarai', market: 'saudi', currency: 'SAR', sectorAr: 'الأغذية والزراعة', sectorEn: 'Food & Beverage' },
   { symbol: '4013.SR', nameAr: 'سليمان الحبيب للخدمات الطبية', nameEn: 'Dr. Sulaiman Al Habib', market: 'saudi', currency: 'SAR', sectorAr: 'الرعاية الصحية', sectorEn: 'Healthcare' },
+  { symbol: '1010.SR', nameAr: 'بنك الرياض', nameEn: 'Riyad Bank', market: 'saudi', currency: 'SAR', sectorAr: 'البنوك والخدمات المالية', sectorEn: 'Banking' },
+  { symbol: '1140.SR', nameAr: 'بنك البلاد', nameEn: 'Bank Albilad', market: 'saudi', currency: 'SAR', sectorAr: 'البنوك والخدمات المالية', sectorEn: 'Banking' },
+  { symbol: '2020.SR', nameAr: 'سابك للمغذيات الزراعية', nameEn: 'SABIC Agri-Nutrients', market: 'saudi', currency: 'SAR', sectorAr: 'البتروكيماويات والأسمدة', sectorEn: 'Chemicals' },
+  { symbol: '7020.SR', nameAr: 'اتحاد اتصالات (موبايلي)', nameEn: 'Mobily', market: 'saudi', currency: 'SAR', sectorAr: 'الاتصالات وتقنية المعلومات', sectorEn: 'Telecom' },
 
   // Egyptian Exchange (.CA)
   { symbol: 'COMI.CA', nameAr: 'البنك التجاري الدولي - مصر', nameEn: 'CIB Egypt', market: 'egypt', currency: 'EGP', sectorAr: 'البنوك والخدمات المالية', sectorEn: 'Banking' },
@@ -41,6 +46,8 @@ export const REAL_MARKET_TICKER_CATALOG: PopularTickerInfo[] = [
   { symbol: 'EFID.CA', nameAr: 'إيديتا للصناعات الغذائية', nameEn: 'Edita Food Industries', market: 'egypt', currency: 'EGP', sectorAr: 'الأغذية والمشروبات', sectorEn: 'Food' },
   { symbol: 'ETEL.CA', nameAr: 'المصرية للاتصالات (WE)', nameEn: 'Telecom Egypt', market: 'egypt', currency: 'EGP', sectorAr: 'الاتصالات وتقنية المعلومات', sectorEn: 'Telecom' },
   { symbol: 'HRHO.CA', nameAr: 'مجموعة إي إف جي القابضة (هيرميس)', nameEn: 'EFG Holding', market: 'egypt', currency: 'EGP', sectorAr: 'الخدمات المالية غير المصرفية', sectorEn: 'Financials' },
+  { symbol: 'EAST.CA', nameAr: 'الشرقية للدخان (إيسترن كومباني)', nameEn: 'Eastern Company', market: 'egypt', currency: 'EGP', sectorAr: 'الأغذية والسلع الاستهلاكية', sectorEn: 'Consumer' },
+  { symbol: 'ESRS.CA', nameAr: 'حديد عز', nameEn: 'Ezz Steel', market: 'egypt', currency: 'EGP', sectorAr: 'الصناعة والمعادن', sectorEn: 'Basic Materials' },
 
   // US Market (Wall Street)
   { symbol: 'AAPL', nameAr: 'آبل (Apple)', nameEn: 'Apple Inc.', market: 'us', currency: 'USD', sectorAr: 'التكنولوجيا والأجهزة الذكية', sectorEn: 'Technology' },
@@ -50,25 +57,41 @@ export const REAL_MARKET_TICKER_CATALOG: PopularTickerInfo[] = [
   { symbol: 'AMZN', nameAr: 'أمازون (Amazon)', nameEn: 'Amazon.com Inc.', market: 'us', currency: 'USD', sectorAr: 'التجارة الإلكترونية والحوسبة', sectorEn: 'Consumer & Cloud' },
   { symbol: 'META', nameAr: 'ميتا بلاتفورمز (Meta)', nameEn: 'Meta Platforms', market: 'us', currency: 'USD', sectorAr: 'التواصل الاجتماعي والذكاء الاصطناعي', sectorEn: 'Technology' },
   { symbol: 'TSLA', nameAr: 'تسلا (Tesla)', nameEn: 'Tesla Inc.', market: 'us', currency: 'USD', sectorAr: 'السيارات الكهربائية والطاقة', sectorEn: 'Automotive' },
-  { symbol: 'BRK-B', nameAr: 'بيركشاير هاثاواي (Berkshire)', nameEn: 'Berkshire Hathaway', market: 'us', currency: 'USD', sectorAr: 'الاستثمار والتأمين', sectorEn: 'Financials' },
+  { symbol: 'AMD', nameAr: 'إيه إم دي (AMD)', nameEn: 'Advanced Micro Devices', market: 'us', currency: 'USD', sectorAr: 'أشباه الموصلات', sectorEn: 'Semiconductors' },
 
-  // UAE Market (Dubai .DU / Abu Dhabi .AD)
-  { symbol: 'EMAAR.DU', nameAr: 'إعمار العقارية - دبي', nameEn: 'Emaar Properties', market: 'uae', currency: 'AED', sectorAr: 'التطوير العقاري', sectorEn: 'Real Estate' },
-  { symbol: 'DIB.DU', nameAr: 'بنك دبي الإسلامي', nameEn: 'Dubai Islamic Bank', market: 'uae', currency: 'AED', sectorAr: 'البنوك والخدمات المالية', sectorEn: 'Banking' },
-  { symbol: 'EMIRATESNBD.DU', nameAr: 'بنك الإمارات دبي الوطني', nameEn: 'Emirates NBD', market: 'uae', currency: 'AED', sectorAr: 'البنوك والخدمات المالية', sectorEn: 'Banking' },
-  { symbol: 'DEWA.DU', nameAr: 'هيئة كهرباء ومياه دبي (ديوا)', nameEn: 'DEWA', market: 'uae', currency: 'AED', sectorAr: 'المرافق والطاقة', sectorEn: 'Utilities' },
+  // UAE Market (Dubai & Abu Dhabi .AE on Yahoo Finance)
+  { symbol: 'EMAAR.AE', nameAr: 'إعمار العقارية - دبي', nameEn: 'Emaar Properties', market: 'uae', currency: 'AED', sectorAr: 'التطوير العقاري', sectorEn: 'Real Estate' },
+  { symbol: 'DIB.AE', nameAr: 'بنك دبي الإسلامي', nameEn: 'Dubai Islamic Bank', market: 'uae', currency: 'AED', sectorAr: 'البنوك والخدمات المالية', sectorEn: 'Banking' },
+  { symbol: 'DEWA.AE', nameAr: 'هيئة كهرباء ومياه دبي (ديوا)', nameEn: 'DEWA', market: 'uae', currency: 'AED', sectorAr: 'المرافق والطاقة', sectorEn: 'Utilities' },
 ];
 
 /**
- * Normalizes a user-typed symbol based on selected market region.
- * Example: '1120' in 'saudi' -> '1120.SR'; 'COMI' in 'egypt' -> 'COMI.CA'
+ * Normalizes a user-typed symbol or Arabic/English company name into a valid Yahoo Finance ticker.
  */
-export function normalizeTickerSymbol(rawSymbol: string, market: MarketRegion): string {
-  const clean = rawSymbol.trim().toUpperCase();
-  if (!clean) return '';
+export function normalizeTickerSymbol(rawInput: string, market: MarketRegion): string {
+  const trimmed = rawInput.trim();
+  if (!trimmed) return '';
+
+  // 1. Check if the user typed an Arabic or English company name from our catalog
+  const lower = trimmed.toLowerCase();
+  const byName = REAL_MARKET_TICKER_CATALOG.find(
+    (c) =>
+      c.symbol.toLowerCase() === lower ||
+      c.nameAr.includes(trimmed) ||
+      c.nameEn.toLowerCase().includes(lower)
+  );
+  if (byName) return byName.symbol;
+
+  const clean = trimmed.toUpperCase();
+
+  // Fix legacy .DU or .AD suffixes to .AE for Yahoo Finance UAE compatibility
+  if (clean.endsWith('.DU') || clean.endsWith('.AD')) {
+    return clean.replace(/\.(DU|AD)$/, '.AE');
+  }
+
   if (clean.includes('.')) return clean;
 
-  // If 4 digits, likely Saudi Tadawul
+  // If 4 digits, Saudi Tadawul
   if (/^\d{4}$/.test(clean)) {
     return `${clean}.SR`;
   }
@@ -78,8 +101,8 @@ export function normalizeTickerSymbol(rawSymbol: string, market: MarketRegion): 
   if (market === 'egypt' && !clean.endsWith('.CA')) {
     return `${clean}.CA`;
   }
-  if (market === 'uae' && !clean.endsWith('.DU') && !clean.endsWith('.AD')) {
-    return `${clean}.DU`;
+  if (market === 'uae' && !clean.endsWith('.AE')) {
+    return `${clean}.AE`;
   }
   return clean;
 }
@@ -119,8 +142,64 @@ function calculateSMA(closes: number[], period: number): number {
 }
 
 /**
- * Fetches real market chart data (price, history, high/low, volume) from Yahoo Finance v8 API
- * using resilient CORS proxies so it works directly inside the user's browser.
+ * Helper to fetch JSON with timeout and validate `chart.result[0]`
+ */
+async function fetchYahooChartJson(
+  url: string,
+  timeoutMs: number,
+  isAllOriginsWrapped = false
+): Promise<any> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const parsed = isAllOriginsWrapped && typeof data?.contents === 'string'
+      ? JSON.parse(data.contents)
+      : data;
+    const chartRes = parsed?.chart?.result?.[0];
+    if (!chartRes || !chartRes.meta) {
+      throw new Error('Invalid chart payload');
+    }
+    return chartRes;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * ES2020-compatible helper that resolves with the first fulfilled promise,
+ * or rejects only if all promises reject.
+ */
+function raceToFirstSuccess<T>(promises: Promise<T>[]): Promise<T> {
+  return new Promise((resolve, reject) => {
+    let rejectedCount = 0;
+    const total = promises.length;
+    if (total === 0) {
+      reject(new Error('No promises provided'));
+      return;
+    }
+    promises.forEach((p) => {
+      Promise.resolve(p).then(
+        (val) => resolve(val),
+        () => {
+          rejectedCount += 1;
+          if (rejectedCount === total) {
+            reject(new Error('All endpoints failed'));
+          }
+        }
+      );
+    });
+  });
+}
+
+/**
+ * Fetches real market chart data + up to 65 trading days of historical OHLCV data
+ * using our built-in edge/local proxy (`/api/yahoo`, `/api/stock`) + parallel public CORS fallbacks.
  */
 export async function fetchLiveStockMarketData(
   rawSymbol: string,
@@ -132,59 +211,100 @@ export async function fetchLiveStockMarketData(
     (c) => c.symbol.toUpperCase() === symbol.toUpperCase()
   );
 
-  const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
-    symbol
-  )}?interval=1d&range=6mo`;
-
-  const proxyUrls = [
-    `https://corsproxy.io/?${encodeURIComponent(yahooUrl)}`,
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(yahooUrl)}`,
-    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(yahooUrl)}`,
-  ];
+  const queryPath = `/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=3mo`;
+  const yahooUrl1 = `https://query1.finance.yahoo.com${queryPath}`;
+  const yahooUrl2 = `https://query2.finance.yahoo.com${queryPath}`;
 
   let chartResult: any = null;
 
-  for (const url of proxyUrls) {
+  // TIER 1: Built-in Edge / Local Vite Proxy (Instant < 300ms on both localhost and Vercel data.ahesolu.com)
+  try {
+    chartResult = await raceToFirstSuccess([
+      fetchYahooChartJson(`/api/yahoo${queryPath}`, 5500),
+      fetchYahooChartJson(`/api/yahoo2${queryPath}`, 5500),
+      fetchYahooChartJson(`/api/stock?symbol=${encodeURIComponent(symbol)}&range=3mo&interval=1d`, 5500),
+    ]);
+  } catch {
+    // Proceed to Tier 2 if local/edge rewrite wasn't reachable
+  }
+
+  // TIER 2: Parallel Public CORS Proxies Race
+  if (!chartResult) {
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 7500);
-      const res = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeoutId);
-      if (!res.ok) continue;
-      const json = await res.json();
-      const result = json?.chart?.result?.[0];
-      if (result && result.meta) {
-        chartResult = result;
-        break;
-      }
+      chartResult = await raceToFirstSuccess([
+        fetchYahooChartJson(`https://corsproxy.org/?${encodeURIComponent(yahooUrl1)}`, 9500),
+        fetchYahooChartJson(`https://api.allorigins.win/raw?url=${encodeURIComponent(yahooUrl2)}`, 11000),
+        fetchYahooChartJson(`https://api.allorigins.win/get?url=${encodeURIComponent(yahooUrl1)}`, 11000, true),
+      ]);
     } catch {
-      // Try next proxy
+      // ignore
     }
   }
 
   if (!chartResult) {
-    throw new Error(`تعذر جلب بيانات السهم (${symbol}) من السوق حالياً. تأكد من صحة رمز السهم واتصال الإنترنت.`);
+    throw new Error(
+      `تعذر جلب بيانات السهم (${symbol}) من السوق حالياً. تأكد من كتابة رمز السهم الصحيح (مثل 1120.SR أو COMI.CA أو AAPL).`
+    );
   }
 
   const meta = chartResult.meta || {};
+  const timestamps: number[] = chartResult.timestamp || [];
   const quote = chartResult.indicators?.quote?.[0] || {};
-  const rawCloses: (number | null)[] = quote.close || [];
+  const rawOpens: (number | null)[] = quote.open || [];
   const rawHighs: (number | null)[] = quote.high || [];
   const rawLows: (number | null)[] = quote.low || [];
+  const rawCloses: (number | null)[] = quote.close || [];
   const rawVolumes: (number | null)[] = quote.volume || [];
 
-  const validCloses = rawCloses.filter(
-    (v): v is number => typeof v === 'number' && !isNaN(v) && v > 0
-  );
-  const validHighs = rawHighs.filter(
-    (v): v is number => typeof v === 'number' && !isNaN(v) && v > 0
-  );
-  const validLows = rawLows.filter(
-    (v): v is number => typeof v === 'number' && !isNaN(v) && v > 0
-  );
-  const validVolumes = rawVolumes.filter(
-    (v): v is number => typeof v === 'number' && !isNaN(v) && v >= 0
-  );
+  // Build chronological daily OHLCV records (for previous days table & technicals)
+  const chronologicalDays: StockHistoricalDay[] = [];
+  for (let i = 0; i < timestamps.length; i++) {
+    const closeVal = rawCloses[i];
+    if (typeof closeVal !== 'number' || isNaN(closeVal) || closeVal <= 0) continue;
+
+    const openVal =
+      typeof rawOpens[i] === 'number' && !isNaN(rawOpens[i]!) && rawOpens[i]! > 0
+        ? rawOpens[i]!
+        : closeVal;
+    const highVal =
+      typeof rawHighs[i] === 'number' && !isNaN(rawHighs[i]!) && rawHighs[i]! > 0
+        ? rawHighs[i]!
+        : Math.max(openVal, closeVal);
+    const lowVal =
+      typeof rawLows[i] === 'number' && !isNaN(rawLows[i]!) && rawLows[i]! > 0
+        ? rawLows[i]!
+        : Math.min(openVal, closeVal);
+    const volVal =
+      typeof rawVolumes[i] === 'number' && !isNaN(rawVolumes[i]!) && rawVolumes[i]! >= 0
+        ? Math.round(rawVolumes[i]!)
+        : 0;
+
+    const prevDayClose =
+      chronologicalDays.length > 0
+        ? chronologicalDays[chronologicalDays.length - 1].close
+        : openVal;
+    const dayChange = Number((closeVal - prevDayClose).toFixed(2));
+    const dayChangePct =
+      prevDayClose > 0 ? Number((((closeVal - prevDayClose) / prevDayClose) * 100).toFixed(2)) : 0;
+
+    const dateStr = new Date(timestamps[i] * 1000).toISOString().slice(0, 10);
+
+    chronologicalDays.push({
+      date: dateStr,
+      open: Number(openVal.toFixed(2)),
+      high: Number(highVal.toFixed(2)),
+      low: Number(lowVal.toFixed(2)),
+      close: Number(closeVal.toFixed(2)),
+      volume: volVal,
+      change: dayChange,
+      changePercent: dayChangePct,
+    });
+  }
+
+  const validCloses = chronologicalDays.map((d) => d.close);
+  const validHighs = chronologicalDays.map((d) => d.high);
+  const validLows = chronologicalDays.map((d) => d.low);
+  const validVolumes = chronologicalDays.map((d) => d.volume);
 
   const currentPrice = Number(
     (
@@ -195,20 +315,32 @@ export async function fetchLiveStockMarketData(
     ).toFixed(2)
   );
 
+  // If the live intraday price differs from the last candle close, update the latest day entry
+  if (chronologicalDays.length > 0) {
+    const lastIdx = chronologicalDays.length - 1;
+    const prevIdxClose =
+      lastIdx >= 1 ? chronologicalDays[lastIdx - 1].close : chronologicalDays[lastIdx].open;
+    chronologicalDays[lastIdx].close = currentPrice;
+    chronologicalDays[lastIdx].high = Math.max(chronologicalDays[lastIdx].high, currentPrice);
+    chronologicalDays[lastIdx].low = Math.min(chronologicalDays[lastIdx].low, currentPrice);
+    chronologicalDays[lastIdx].change = Number((currentPrice - prevIdxClose).toFixed(2));
+    chronologicalDays[lastIdx].changePercent =
+      prevIdxClose > 0
+        ? Number((((currentPrice - prevIdxClose) / prevIdxClose) * 100).toFixed(2))
+        : 0;
+  }
+
   const previousClose = Number(
     (
-      meta.chartPreviousClose ||
-      meta.previousClose ||
-      (validCloses.length >= 2 ? validCloses[validCloses.length - 2] : currentPrice)
+      (chronologicalDays.length >= 2
+        ? chronologicalDays[chronologicalDays.length - 2].close
+        : meta.chartPreviousClose || meta.previousClose) || currentPrice
     ).toFixed(2)
   );
 
-  // Daily change compared to immediately preceding session close
-  const lastSessionClose =
-    validCloses.length >= 2 ? validCloses[validCloses.length - 2] : previousClose;
   const changePercent =
-    lastSessionClose > 0
-      ? Number((((currentPrice - lastSessionClose) / lastSessionClose) * 100).toFixed(2))
+    previousClose > 0
+      ? Number((((currentPrice - previousClose) / previousClose) * 100).toFixed(2))
       : 0;
 
   const high52W = Number(
@@ -224,10 +356,10 @@ export async function fetchLiveStockMarketData(
     ).toFixed(2)
   );
 
-  // Compute Real Technicals from Market History
+  // Compute Real Technicals from Historical Closes
   const rsi14 = calculateRSI14(validCloses);
   const ma50 = calculateSMA(validCloses, 50) || currentPrice;
-  const ma200 = calculateSMA(validCloses, 120) || currentPrice; // 6-month long average
+  const ma200 = calculateSMA(validCloses, 120) || currentPrice;
 
   // Compute Real Support & Resistance from recent 20-day range & Pivot levels
   const recent20Lows = validLows.slice(-20);
@@ -237,9 +369,13 @@ export async function fetchLiveStockMarketData(
   const swingHigh20 =
     recent20Highs.length > 0 ? Math.max(...recent20Highs) : currentPrice * 1.05;
 
-  const support1 = Number(Math.min(currentPrice * 0.985, Math.max(swingLow20, currentPrice * 0.93)).toFixed(2));
+  const support1 = Number(
+    Math.min(currentPrice * 0.985, Math.max(swingLow20, currentPrice * 0.93)).toFixed(2)
+  );
   const support2 = Number((support1 * 0.955).toFixed(2));
-  const resistance1 = Number(Math.max(currentPrice * 1.015, Math.min(swingHigh20, currentPrice * 1.08)).toFixed(2));
+  const resistance1 = Number(
+    Math.max(currentPrice * 1.015, Math.min(swingHigh20, currentPrice * 1.08)).toFixed(2)
+  );
   const resistance2 = Number(Math.max(resistance1 * 1.05, high52W).toFixed(2));
 
   // Volume trend
@@ -247,13 +383,11 @@ export async function fetchLiveStockMarketData(
   if (validVolumes.length >= 10) {
     const recentVol = validVolumes[validVolumes.length - 1];
     const avgVol20 =
-      validVolumes.slice(-20).reduce((a, b) => a + b, 0) /
-      Math.min(20, validVolumes.length);
+      validVolumes.slice(-20).reduce((a, b) => a + b, 0) / Math.min(20, validVolumes.length);
     if (recentVol > avgVol20 * 1.25) volumeTrend = 'high';
     else if (recentVol < avgVol20 * 0.7) volumeTrend = 'low';
   }
 
-  // Estimate Technical/Statistical Fair Value Target based on 6-month median, 52W range, and MA trend
   const rangeMid = (high52W + low52W) / 2;
   const trendFactor = currentPrice >= ma50 ? 1.06 : 0.98;
   const estimatedFairValue =
@@ -261,15 +395,14 @@ export async function fetchLiveStockMarketData(
       ? existingStock.estimatedFairValue
       : Number(((rangeMid * 0.5 + ma50 * 0.5) * trendFactor).toFixed(2));
 
-  // Dynamic Recommendation & Signal Evaluation based on live market metrics
   let score = 58;
   if (currentPrice > ma50 && ma50 >= ma200) score += 15;
   else if (currentPrice > ma200) score += 8;
   else score -= 8;
 
   if (rsi14 >= 40 && rsi14 <= 64) score += 10;
-  else if (rsi14 < 35) score += 7; // Oversold near support bounce
-  else if (rsi14 > 72) score -= 10; // Overbought risk
+  else if (rsi14 < 35) score += 7;
+  else if (rsi14 > 72) score -= 10;
 
   const upsideToResistance =
     currentPrice > 0 ? ((resistance2 - currentPrice) / currentPrice) * 100 : 0;
@@ -302,27 +435,26 @@ export async function fetchLiveStockMarketData(
     minute: '2-digit',
   });
 
-  // Dynamic Arabic & English Rationale generated from live market numbers
   let siteRationaleAr = '';
   if (analyticalSignal === 'strong_accumulation') {
-    siteRationaleAr = `[تحديث السوق الفعلي ${nowStr}]: يتداول السهم عند ${currentPrice} بتغير يومي (${changePercent >= 0 ? '+' : ''}${changePercent}%)، وهو في منطقة فنية إيجابية أعلى/قرب الدعم ${support1} مع مؤشر قوة نسبية متوازن (RSI: ${rsi14}) ومتوسط 50 يوم عند ${ma50}. المقاومة المستهدفة الأولى ${resistance1} ثم ${resistance2}.`;
+    siteRationaleAr = `[فحص السوق الفعلي ${nowStr}]: يتداول السهم عند ${currentPrice} (إغلاق سابق ${previousClose} | تغير ${changePercent >= 0 ? '+' : ''}${changePercent}%)، وهو في منطقة فنية إيجابية قرب الدعم ${support1} مع RSI عند ${rsi14} ومتوسط 50 يوم عند ${ma50}. المقاومة المستهدفة الأولى ${resistance1} ثم ${resistance2}.`;
   } else if (analyticalSignal === 'positive_momentum') {
-    siteRationaleAr = `[تحديث السوق الفعلي ${nowStr}]: زخم إيجابي حيث يتداول السهم عند ${currentPrice} أعلى متوسط 50 يوم (${ma50}) مع RSI عند ${rsi14}. الحفاظ على مستوى الدعم ${support1} يدعم استهداف المقاومة ${resistance1}.`;
+    siteRationaleAr = `[فحص السوق الفعلي ${nowStr}]: زخم إيجابي حيث يتداول السهم عند ${currentPrice} أعلى متوسط 50 يوم (${ma50}) مع RSI عند ${rsi14}. الحفاظ على مستوى الدعم ${support1} يدعم استهداف المقاومة ${resistance1}.`;
   } else if (analyticalSignal === 'take_profit_zone') {
-    siteRationaleAr = `[تحديث السوق الفعلي ${nowStr}]: السعر الحالي ${currentPrice} يقترب من منطقة المقاومة (${resistance1}) أو تشبع شرائي على مؤشر القوة النسبية (RSI: ${rsi14})؛ استرشادياً يُفضل مراقبة جني الأرباح الجزئي أو رفع مستوى الوقف إلى ${support1}.`;
+    siteRationaleAr = `[فحص السوق الفعلي ${nowStr}]: السعر الحالي ${currentPrice} يقترب من منطقة المقاومة (${resistance1}) أو تشبع شرائي على مؤشر القوة النسبية (RSI: ${rsi14})؛ استرشادياً يُراقب لجني الأرباح الجزئي أو رفع الوقف إلى ${support1}.`;
   } else if (analyticalSignal === 'caution_risk') {
-    siteRationaleAr = `[تحديث السوق الفعلي ${nowStr}]: يتداول السهم عند ${currentPrice} دون المتوسط المتحرك 50 يوم (${ma50})؛ يُنصح استرشادياً بمراقبة ثبات مستوى الدعم ${support1} و${support2} قبل بناء مراكز جديدة.`;
+    siteRationaleAr = `[فحص السوق الفعلي ${nowStr}]: يتداول السهم عند ${currentPrice} دون المتوسط المتحرك 50 يوم (${ma50})؛ يُنصح استرشادياً بمراقبة ثبات مستوى الدعم ${support1} و${support2}.`;
   } else {
-    siteRationaleAr = `[تحديث السوق الفعلي ${nowStr}]: السعر الفعلي بالسوق ${currentPrice} ويتحرك في نطاق عرضي بين الدعم الأول ${support1} والمقاومة الأولى ${resistance1} مع مؤشر RSI عند ${rsi14}.`;
+    siteRationaleAr = `[فحص السوق الفعلي ${nowStr}]: السعر الفعلي بالسوق ${currentPrice} (إغلاق سابق ${previousClose}) ويتحرك بين الدعم الأول ${support1} والمقاومة الأولى ${resistance1} مع مؤشر RSI عند ${rsi14}.`;
   }
 
-  const siteRationaleEn = `[Live Market Scan ${nowStr}]: Trading at ${currentPrice} (${changePercent >= 0 ? '+' : ''}${changePercent}%), RSI(14): ${rsi14}, MA50: ${ma50}. Key Support: ${support1}, Resistance: ${resistance1}.`;
+  const siteRationaleEn = `[Live Market Scan ${nowStr}]: Trading at ${currentPrice} (Prev Close: ${previousClose}, ${changePercent >= 0 ? '+' : ''}${changePercent}%), RSI(14): ${rsi14}, MA50: ${ma50}. Support: ${support1}, Resistance: ${resistance1}.`;
 
-  // Detect market region from suffix if not provided
   let detectedMarket: MarketRegion = preferredMarket;
   if (symbol.endsWith('.SR')) detectedMarket = 'saudi';
   else if (symbol.endsWith('.CA')) detectedMarket = 'egypt';
-  else if (symbol.endsWith('.DU') || symbol.endsWith('.AD')) detectedMarket = 'uae';
+  else if (symbol.endsWith('.AE') || symbol.endsWith('.DU') || symbol.endsWith('.AD'))
+    detectedMarket = 'uae';
   else if (!symbol.includes('.')) detectedMarket = 'us';
 
   const currency =
@@ -337,10 +469,16 @@ export async function fetchLiveStockMarketData(
       ? 'AED'
       : 'USD');
 
-  const priceHistory = validCloses.slice(-12).map((c) => Number(c.toFixed(2)));
+  const recent30 = chronologicalDays.slice(-30);
+  const priceHistory = recent30.map((d) => d.close);
+  const priceDates = recent30.map((d) => d.date);
   if (priceHistory.length === 0) {
     priceHistory.push(currentPrice);
+    priceDates.push(new Date().toISOString().slice(0, 10));
   }
+
+  // Newest-first array of previous days for the Historical Days Table
+  const historicalDays = [...chronologicalDays].reverse();
 
   return {
     id: existingStock?.id || `live-${symbol.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
@@ -362,7 +500,7 @@ export async function fetchLiveStockMarketData(
     sectorAr: existingStock?.sectorAr || catalogMatch?.sectorAr || 'أسهم السوق المالي',
     sectorEn: existingStock?.sectorEn || catalogMatch?.sectorEn || 'Equities',
     currentPrice,
-    previousClose: lastSessionClose,
+    previousClose,
     changePercent,
     high52W,
     low52W,
@@ -389,6 +527,9 @@ export async function fetchLiveStockMarketData(
     siteRationaleAr,
     siteRationaleEn,
     priceHistory,
+    priceDates,
+    historicalDays,
+    lastUpdatedAt: nowStr,
     isWatchlisted: existingStock?.isWatchlisted ?? true,
   };
 }

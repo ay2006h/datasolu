@@ -233,6 +233,17 @@ export type PersonalStance =
   | 'neutral'      // محايد / تحت المراقبة
   | 'bearish';     // سلبي / انتظار تصحيح
 
+export interface StockHistoricalDay {
+  date: string;        // YYYY-MM-DD
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  change: number;
+  changePercent: number;
+}
+
 export interface StockItem {
   id: string;
   symbol: string;
@@ -269,8 +280,11 @@ export interface StockItem {
   analyticalSignal: AnalyticalSignal;
   siteRationaleAr: string;
   siteRationaleEn: string;
-  // Historical recent prices for sparkline/chart (last 12 points)
+  // Historical recent prices & dates for chart + full previous days OHLCV table
   priceHistory: number[];
+  priceDates?: string[];
+  historicalDays?: StockHistoricalDay[];
+  lastUpdatedAt?: string;
   // User customization
   isWatchlisted?: boolean;
 }
