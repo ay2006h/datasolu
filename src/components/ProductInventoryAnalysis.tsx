@@ -52,6 +52,8 @@ import {
   isUnitCostColumn,
 } from '../utils/analyticsEngine';
 import { ColumnInfoTooltip } from './ColumnInfoTooltip';
+import { usePagination } from '../hooks/usePagination';
+import { Pagination } from './ui/Pagination';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -160,6 +162,13 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
       .filter((i) => i.isKingItem)
       .sort((a, b) => (a.kingRank || 999) - (b.kingRank || 999));
   }, [items]);
+  const kingPg = usePagination(kingItems, 6);
+
+  // Pagination state for PO Budget Simulator & Dead Stock tables
+  const [poPage, setPoPage] = useState<number>(1);
+  const [poPageSize, setPoPageSize] = useState<number>(10);
+  const [deadPage, setDeadPage] = useState<number>(1);
+  const [deadPageSize, setDeadPageSize] = useState<number>(10);
 
   // Filtered & Sorted items for main table
   const filteredItems = useMemo(() => {
@@ -514,38 +523,30 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl border border-indigo-500/20 relative overflow-hidden">
-        <div className="absolute -top-24 -left-24 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -right-24 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="relative z-10 flex flex-wrap items-center justify-between gap-4">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/30 text-amber-300 text-xs font-bold">
-              <Crown className="w-4 h-4 text-amber-400" />
+      <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-5 sm:p-6 border border-slate-200 dark:border-slate-700 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-brand-50 dark:bg-brand-950/60 border border-brand-200 dark:border-brand-800 text-brand-700 dark:text-brand-300 text-[11px] font-bold">
+              <Crown className="w-3.5 h-3.5 text-amber-500" />
               <span>
                 {isAr
-                  ? 'محرك تحليل الأصناف والمخزون الذكي (ABC + King Items)'
-                  : 'Smart Product Velocity, King Items & Restock Engine'}
+                  ? 'محرك تحليل الأصناف والمخزون (ABC + King Items)'
+                  : 'Product Velocity, King Items & Restock Engine'}
               </span>
             </div>
-            <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight">
+            <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">
               {isAr
-                ? 'متابعة الأصناف الأكثر مبيعاً، الأصناف الكينج، وخطة التوريد المقترحة'
-                : 'Best-Sellers Tracking, King Items & Suggested Replenishment Plan'}
+                ? 'سرعة دوران الأصناف، الأصناف الكينج، وخطة التوريد'
+                : 'SKU Velocity, King Items & Replenishment Plan'}
             </h2>
-            <p className="text-xs sm:text-sm text-slate-300 max-w-3xl">
-              {isAr
-                ? 'قم بربط أعمدة ملف الإكسيل (Mapping) وتحديد الفترة الزمنية ليقوم النظام بتصنيف سرعة حركة الأصناف (سريعة، متوسطة، ضعيفة)، واكتشاف الأصناف الكينج (الأسرع مبيعاً والأعلى ربحاً)، وحساب الكميات المطلوب توفيرها بدقة.'
-                : 'Map your Excel columns and select a date range to classify item velocity (Fast, Medium, Slow), uncover King Items (Fastest moving & highest profit), and calculate suggested order quantities.'}
-            </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Quick File Sales Period Duration Selector (Always accessible) */}
-            <div className="flex items-center gap-2 bg-white/10 border border-amber-400/40 rounded-xl px-3 py-1.5 backdrop-blur-sm">
-              <Calendar className="w-4 h-4 text-amber-400 flex-shrink-0" />
-              <span className="text-[11px] font-bold text-amber-200 whitespace-nowrap">
-                {isAr ? 'فترة مبيعات الملف:' : 'File Period:'}
+            <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5">
+              <Calendar className="w-4 h-4 text-brand-500 flex-shrink-0" />
+              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                {isAr ? 'فترة الملف:' : 'Period:'}
               </span>
               <input
                 type="number"
@@ -557,26 +558,24 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
                   const num = parseInt(e.target.value, 10);
                   setDefaultPeriodDays(!isNaN(num) && num > 0 ? num : 1);
                 }}
-                className="w-16 text-xs font-black text-center bg-slate-900/90 text-amber-300 border border-amber-400/50 rounded-lg px-1.5 py-1 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                className="w-14 text-xs font-black text-center bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-300 border border-slate-300 dark:border-slate-600 rounded-lg px-1.5 py-1 focus:outline-none focus:ring-2 focus:ring-brand-500"
                 title={
                   isAr
                     ? 'حدد عدد أيام المبيعات التي يمثلها الملف لحساب المتوسط اليومي بدقة'
                     : 'Set number of sales days represented by the file'
                 }
               />
-              <span className="text-[11px] font-bold text-slate-300">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
                 {isAr ? 'يوم' : 'days'}
               </span>
             </div>
 
             <button
               onClick={() => setShowMappingPanel(!showMappingPanel)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/15 transition-all"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700/70 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold border border-slate-200 dark:border-slate-600 transition-all"
             >
-              <Settings2 className="w-4 h-4 text-amber-400" />
-              <span>
-                {isAr ? 'إعدادات ربط الأعمدة (Column Mapping)' : 'Column Mapping Setup'}
-              </span>
+              <Settings2 className="w-4 h-4 text-brand-500" />
+              <span>{isAr ? 'ربط الأعمدة' : 'Column Mapping'}</span>
               {showMappingPanel ? (
                 <ChevronUp className="w-4 h-4" />
               ) : (
@@ -587,29 +586,29 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
             {/* Button 1: Download ONLY items that need reordering */}
             <button
               onClick={handleExportRestockOnlyExcel}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 text-white text-xs font-bold shadow-lg shadow-rose-600/30 transition-all hover:scale-105"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-sm transition-all"
               title={
                 isAr
                   ? 'تحميل ملف إكسيل يقتصر فقط على الأصناف التي تحتاج لإعادة طلب وتوريد'
                   : 'Download Excel with only items that need reordering'
               }
             >
-              <ShoppingCart className="w-4 h-4" />
+              <ShoppingCart className="w-3.5 h-3.5" />
               <span>
                 {isAr
-                  ? `تحميل الأصناف المطلوب طلبها فقط (${summary.restockNeededCount})`
-                  : `Export Reorder List Only (${summary.restockNeededCount})`}
+                  ? `طلبية النواقص (${summary.restockNeededCount})`
+                  : `Reorder List (${summary.restockNeededCount})`}
               </span>
             </button>
 
             {/* Button 2: Export full report of all products */}
             <button
               onClick={handleExportRestockExcel}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-lg shadow-emerald-600/25 transition-all hover:scale-105"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold shadow-sm transition-all"
             >
-              <Download className="w-4 h-4" />
+              <Download className="w-3.5 h-3.5" />
               <span>
-                {isAr ? 'تصدير التقرير الكامل للأصناف (Excel)' : 'Export Full Report (Excel)'}
+                {isAr ? 'تصدير التقرير (Excel)' : 'Export Excel'}
               </span>
             </button>
           </div>
@@ -1532,7 +1531,7 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {kingItems.slice(0, 6).map((king) => (
+            {kingPg.pageItems.map((king) => (
               <div
                 key={king.id}
                 className="bg-white dark:bg-slate-900/90 rounded-2xl p-4 border border-amber-300/80 dark:border-amber-700/60 shadow-sm hover:shadow-md transition-all flex flex-col justify-between space-y-4 relative overflow-hidden"
@@ -1602,6 +1601,16 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
               </div>
             ))}
           </div>
+
+          <Pagination
+            page={kingPg.page}
+            totalPages={kingPg.totalPages}
+            pageSize={kingPg.pageSize}
+            total={kingPg.total}
+            onPageChange={kingPg.setPage}
+            onPageSizeChange={kingPg.setPageSize}
+            pageSizeOptions={[6, 12, 24]}
+          />
         </div>
       )}
 
@@ -1763,7 +1772,7 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-900/80 text-[11px] font-extrabold text-slate-500 dark:text-slate-400 uppercase border-b border-slate-200 dark:border-slate-700">
                 <th className="py-3.5 px-4 text-start">#</th>
-                <th className="py-3.5 px-4 text-start">{isAr ? 'الصنف والقسم' : 'Item & Category'}</th>
+                <th className="py-3.5 px-4 text-start sticky start-0 bg-slate-50 dark:bg-slate-900 z-10">{isAr ? 'الصنف والقسم' : 'Item & Category'}</th>
                 <th className="py-3.5 px-4 text-start">{isAr ? 'سرعة الحركة والتصنيف' : 'Movement & King Status'}</th>
                 <th
                   onClick={() => toggleSort('soldQty')}
@@ -1825,7 +1834,7 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
                   <td className="py-3.5 px-4 font-bold text-slate-400">{startIndex + idx + 1}</td>
 
                   {/* Item Name & Category */}
-                  <td className="py-3.5 px-4">
+                  <td className="py-3.5 px-4 sticky start-0 bg-white dark:bg-slate-800 z-10">
                     <div className="font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
                       {item.isKingItem && <Crown className="w-4 h-4 text-amber-500 fill-amber-400 flex-shrink-0" />}
                       <span>{item.itemName}</span>
@@ -2356,11 +2365,11 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
                 </div>
               </div>
 
-              <div className="overflow-x-auto max-h-64 rounded-2xl border border-slate-200 dark:border-slate-700">
+              <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700">
                 <table className="w-full text-xs text-start">
-                  <thead className="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-300 font-extrabold sticky top-0">
+                  <thead className="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-300 font-extrabold">
                     <tr>
-                      <th className="py-2.5 px-3 text-start">{isAr ? 'الصنف (حسب الأولوية)' : 'Item'}</th>
+                      <th className="py-2.5 px-3 text-start sticky start-0 bg-slate-100 dark:bg-slate-900 z-10">{isAr ? 'الصنف (حسب الأولوية)' : 'Item'}</th>
                       <th className="py-2.5 px-2 text-center">{isAr ? 'الكمية المعتمدة' : 'Approved Qty'}</th>
                       <th className="py-2.5 px-2 text-center">{isAr ? 'تكلفة الوحدة' : 'Unit Cost'}</th>
                       <th className="py-2.5 px-2 text-center">{isAr ? 'إجمالي التكلفة' : 'Order Cost'}</th>
@@ -2377,49 +2386,66 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
                         </td>
                       </tr>
                     ) : (
-                      allocatedList.slice(0, 12).map((r, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                          <td className="py-2 px-3 font-black text-slate-900 dark:text-white">
-                            #{idx + 1} {r.itemName}
-                          </td>
-                          <td className="py-2 px-2 text-center font-black text-indigo-600">
-                            {r.approvedQty} / {r.orderQty}
-                          </td>
-                          <td className="py-2 px-2 text-center font-mono">
-                            {r.estUnitCost.toFixed(1)}
-                          </td>
-                          <td className="py-2 px-2 text-center font-black">
-                            {formatCurrency(r.approvedCost, isAr)}
-                          </td>
-                          <td className="py-2 px-2 text-center">
-                            <span
-                              className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                                r.budgetStatus === 'full'
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : r.budgetStatus === 'partial'
-                                  ? 'bg-amber-100 text-amber-800'
-                                  : 'bg-rose-100 text-rose-800'
-                              }`}
-                            >
-                              {r.budgetStatus === 'full'
-                                ? isAr
-                                  ? 'ضمن الميزانية'
-                                  : 'Approved'
-                                : r.budgetStatus === 'partial'
-                                ? isAr
-                                  ? 'كمية جزئية'
-                                  : 'Partial'
-                                : isAr
-                                ? 'خارج السقف'
-                                : 'Deferred'}
-                            </span>
-                          </td>
-                        </tr>
-                      ))
+                      allocatedList
+                        .slice((poPage - 1) * poPageSize, poPage * poPageSize)
+                        .map((r, idx) => {
+                          const rankIdx = (poPage - 1) * poPageSize + idx;
+                          return (
+                            <tr key={rankIdx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                              <td className="py-2 px-3 font-black text-slate-900 dark:text-white sticky start-0 bg-white dark:bg-slate-800 z-10">
+                                #{rankIdx + 1} {r.itemName}
+                              </td>
+                              <td className="py-2 px-2 text-center font-black text-indigo-600">
+                                {r.approvedQty} / {r.orderQty}
+                              </td>
+                              <td className="py-2 px-2 text-center font-mono">
+                                {r.estUnitCost.toFixed(1)}
+                              </td>
+                              <td className="py-2 px-2 text-center font-black">
+                                {formatCurrency(r.approvedCost, isAr)}
+                              </td>
+                              <td className="py-2 px-2 text-center">
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                                    r.budgetStatus === 'full'
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : r.budgetStatus === 'partial'
+                                      ? 'bg-amber-100 text-amber-800'
+                                      : 'bg-rose-100 text-rose-800'
+                                  }`}
+                                >
+                                  {r.budgetStatus === 'full'
+                                    ? isAr
+                                      ? 'ضمن الميزانية'
+                                      : 'Approved'
+                                    : r.budgetStatus === 'partial'
+                                    ? isAr
+                                      ? 'كمية جزئية'
+                                      : 'Partial'
+                                    : isAr
+                                    ? 'خارج السقف'
+                                    : 'Deferred'}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })
                     )}
                   </tbody>
                 </table>
               </div>
+              <Pagination
+                page={poPage}
+                totalPages={Math.max(1, Math.ceil(allocatedList.length / poPageSize))}
+                pageSize={poPageSize}
+                total={allocatedList.length}
+                onPageChange={setPoPage}
+                onPageSizeChange={(s) => {
+                  setPoPageSize(s);
+                  setPoPage(1);
+                }}
+                pageSizeOptions={[5, 10, 25, 50]}
+              />
             </div>
 
             {/* PANEL B: DEAD STOCK CAPITAL LOCK & PROMOTIONAL LIQUIDATION ADVISOR */}
@@ -2486,11 +2512,11 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
                 </div>
               </div>
 
-              <div className="overflow-x-auto max-h-64 rounded-2xl border border-slate-200 dark:border-slate-700">
+              <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700">
                 <table className="w-full text-xs text-start">
-                  <thead className="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-300 font-extrabold sticky top-0">
+                  <thead className="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-300 font-extrabold">
                     <tr>
-                      <th className="py-2.5 px-3 text-start">{isAr ? 'الصنف الراكد / البطيء' : 'Stagnant SKU'}</th>
+                      <th className="py-2.5 px-3 text-start sticky start-0 bg-slate-100 dark:bg-slate-900 z-10">{isAr ? 'الصنف الراكد / البطيء' : 'Stagnant SKU'}</th>
                       <th className="py-2.5 px-2 text-center">{isAr ? 'السيولة المجمدة' : 'Locked Cash'}</th>
                       <th className="py-2.5 px-2 text-center">{isAr ? 'الخصم المقترح %' : 'Promo %'}</th>
                       <th className="py-2.5 px-2 text-center">{isAr ? 'سعر العرض الآمن' : 'Promo Price'}</th>
@@ -2507,31 +2533,45 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
                         </td>
                       </tr>
                     ) : (
-                      deadStockCandidates.slice(0, 12).map((d, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                          <td className="py-2 px-3 font-black text-slate-900 dark:text-white">
-                            {d.itemName}
-                          </td>
-                          <td className="py-2 px-2 text-center font-bold text-rose-600">
-                            {formatCurrency(d.lockedCapital, isAr)}
-                          </td>
-                          <td className="py-2 px-2 text-center">
-                            <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-black text-[10px]">
-                              -{d.suggestedDiscountPct}%
-                            </span>
-                          </td>
-                          <td className="py-2 px-2 text-center font-black text-indigo-600">
-                            {d.promoPrice.toFixed(2)}
-                          </td>
-                          <td className="py-2 px-2 text-center font-black text-emerald-600">
-                            {formatCurrency(d.expectedCashFreed, isAr)}
-                          </td>
-                        </tr>
-                      ))
+                      deadStockCandidates
+                        .slice((deadPage - 1) * deadPageSize, deadPage * deadPageSize)
+                        .map((d, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td className="py-2 px-3 font-black text-slate-900 dark:text-white sticky start-0 bg-white dark:bg-slate-800 z-10">
+                              {d.itemName}
+                            </td>
+                            <td className="py-2 px-2 text-center font-bold text-rose-600">
+                              {formatCurrency(d.lockedCapital, isAr)}
+                            </td>
+                            <td className="py-2 px-2 text-center">
+                              <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-black text-[10px]">
+                                -{d.suggestedDiscountPct}%
+                              </span>
+                            </td>
+                            <td className="py-2 px-2 text-center font-black text-indigo-600">
+                              {d.promoPrice.toFixed(2)}
+                            </td>
+                            <td className="py-2 px-2 text-center font-black text-emerald-600">
+                              {formatCurrency(d.expectedCashFreed, isAr)}
+                            </td>
+                          </tr>
+                        ))
                     )}
                   </tbody>
                 </table>
               </div>
+              <Pagination
+                page={deadPage}
+                totalPages={Math.max(1, Math.ceil(deadStockCandidates.length / deadPageSize))}
+                pageSize={deadPageSize}
+                total={deadStockCandidates.length}
+                onPageChange={setDeadPage}
+                onPageSizeChange={(s) => {
+                  setDeadPageSize(s);
+                  setDeadPage(1);
+                }}
+                pageSizeOptions={[5, 10, 25, 50]}
+              />
             </div>
           </div>
         );

@@ -1,16 +1,16 @@
 import React, { useState, useMemo } from 'react';
 import { SheetData } from '../types';
 import { useI18n } from '../locales/i18nContext';
-import { Table, Split, Calculator } from 'lucide-react';
-import { formatCurrency } from '../utils/analyticsEngine';
+import { Split } from 'lucide-react';
+import { usePagination } from '../hooks/usePagination';
+import { Pagination } from './ui/Pagination';
 
 interface PivotTableProps {
   sheet: SheetData;
 }
 
 export const PivotTable: React.FC<PivotTableProps> = ({ sheet }) => {
-  const { t, language } = useI18n();
-  const isAr = language === 'ar';
+  const { t } = useI18n();
   const { rows, columns } = sheet;
 
   const stringCols = columns.filter((c) => c.type === 'string' || c.type === 'status');
@@ -23,7 +23,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({ sheet }) => {
   const [valDim, setValDim] = useState<string>(numericCols[0]?.name || '');
   const [aggMode, setAggMode] = useState<'sum' | 'count' | 'avg'>('sum');
 
-  // Compute Pivot matrix
+  // Compute Pivot matrix across all rows (no arbitrary 20-row truncation)
   const { rowKeys, colKeys, matrix, colTotals, rowTotals, grandTotal } = useMemo(() => {
     if (!rowDim || !colDim || !valDim) {
       return { rowKeys: [], colKeys: [], matrix: {}, colTotals: {}, rowTotals: {}, grandTotal: 0 };
@@ -37,7 +37,10 @@ export const PivotTable: React.FC<PivotTableProps> = ({ sheet }) => {
       const rKey = String(r[rowDim] ?? 'N/A').trim();
       const cKey = String(r[colDim] ?? 'N/A').trim();
       const rawVal = r[valDim];
-      const val = typeof rawVal === 'number' ? rawVal : parseFloat(String(rawVal).replace(/[^0-9.-]+/g, '')) || 0;
+      const val =
+        typeof rawVal === 'number'
+          ? rawVal
+          : parseFloat(String(rawVal).replace(/[^0-9.-]+/g, '')) || 0;
 
       rowSet.add(rKey);
       colSet.add(cKey);
@@ -48,8 +51,8 @@ export const PivotTable: React.FC<PivotTableProps> = ({ sheet }) => {
       cellValues[rKey][cKey].push(val);
     });
 
-    const rowKeys = Array.from(rowSet).slice(0, 20);
-    const colKeys = Array.from(colSet).slice(0, 10);
+    const rowKeys = Array.from(rowSet);
+    const colKeys = Array.from(colSet).slice(0, 12);
 
     const matrix: Record<string, Record<string, number>> = {};
     const colTotals: Record<string, number> = {};
@@ -93,33 +96,32 @@ export const PivotTable: React.FC<PivotTableProps> = ({ sheet }) => {
     };
   }, [rows, rowDim, colDim, valDim, aggMode]);
 
+  const pg = usePagination(rowKeys, 10);
+
   return (
-    <div className="bg-white dark:bg-slate-800/90 rounded-3xl p-6 border border-slate-200 dark:border-slate-700/80 shadow-sm space-y-6">
+    <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-5 sm:p-6 border border-slate-200 dark:border-slate-700 shadow-sm space-y-5">
       {/* Header */}
-      <div className="flex items-center gap-3 pb-4 border-b border-slate-100 dark:border-slate-700/60">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-brand-500/20">
+      <div className="flex items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-700/60">
+        <div className="w-9 h-9 rounded-xl bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 flex items-center justify-center">
           <Split className="w-5 h-5" />
         </div>
         <div>
           <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
             {t.pivot.title}
           </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            {t.pivot.subtitle}
-          </p>
         </div>
       </div>
 
       {/* Control Pickers */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-200/70 dark:border-slate-800">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-50 dark:bg-slate-900/50 p-3.5 rounded-xl border border-slate-200/70 dark:border-slate-800">
         <div>
-          <label className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 block">
+          <label className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 block">
             {t.pivot.rowDimension}
           </label>
           <select
             value={rowDim}
             onChange={(e) => setRowDim(e.target.value)}
-            className="w-full text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-slate-800 dark:text-slate-200"
+            className="w-full text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-slate-800 dark:text-slate-200"
           >
             {columns.map((c) => (
               <option key={c.name} value={c.name}>
@@ -130,13 +132,13 @@ export const PivotTable: React.FC<PivotTableProps> = ({ sheet }) => {
         </div>
 
         <div>
-          <label className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 block">
+          <label className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 block">
             {t.pivot.colDimension}
           </label>
           <select
             value={colDim}
             onChange={(e) => setColDim(e.target.value)}
-            className="w-full text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-slate-800 dark:text-slate-200"
+            className="w-full text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-slate-800 dark:text-slate-200"
           >
             {columns.map((c) => (
               <option key={c.name} value={c.name}>
@@ -147,13 +149,13 @@ export const PivotTable: React.FC<PivotTableProps> = ({ sheet }) => {
         </div>
 
         <div>
-          <label className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 block">
+          <label className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 block">
             {t.pivot.valDimension}
           </label>
           <select
             value={valDim}
             onChange={(e) => setValDim(e.target.value)}
-            className="w-full text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-slate-800 dark:text-slate-200"
+            className="w-full text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-slate-800 dark:text-slate-200"
           >
             {numericCols.map((c) => (
               <option key={c.name} value={c.name}>
@@ -164,13 +166,13 @@ export const PivotTable: React.FC<PivotTableProps> = ({ sheet }) => {
         </div>
 
         <div>
-          <label className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 block">
+          <label className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 block">
             {t.charts.aggregation}
           </label>
           <select
             value={aggMode}
             onChange={(e) => setAggMode(e.target.value as any)}
-            className="w-full text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-slate-800 dark:text-slate-200"
+            className="w-full text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-slate-800 dark:text-slate-200"
           >
             <option value="sum">{t.charts.sum}</option>
             <option value="avg">{t.charts.avg}</option>
@@ -180,38 +182,38 @@ export const PivotTable: React.FC<PivotTableProps> = ({ sheet }) => {
       </div>
 
       {/* Pivot Matrix Table */}
-      <div className="overflow-x-auto rounded-2xl border border-slate-200/80 dark:border-slate-700">
+      <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-slate-700">
         <table className="w-full text-xs text-start">
           <thead className="bg-slate-100/90 dark:bg-slate-900/90 text-slate-800 dark:text-slate-200 font-bold border-b border-slate-200 dark:border-slate-700">
             <tr>
-              <th className="p-3.5 text-start bg-slate-200/60 dark:bg-slate-950">
+              <th className="p-3 text-start bg-slate-200/60 dark:bg-slate-950 sticky start-0 z-10">
                 {rowDim} \ {colDim}
               </th>
               {colKeys.map((cK) => (
-                <th key={cK} className="p-3.5 text-center whitespace-nowrap">
+                <th key={cK} className="p-3 text-center whitespace-nowrap">
                   {cK}
                 </th>
               ))}
-              <th className="p-3.5 text-center bg-brand-50 dark:bg-brand-950 text-brand-700 dark:text-brand-300 whitespace-nowrap">
+              <th className="p-3 text-center bg-brand-50 dark:bg-brand-950 text-brand-700 dark:text-brand-300 whitespace-nowrap">
                 {t.pivot.grandTotal}
               </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
-            {rowKeys.map((rK) => (
+            {pg.pageItems.map((rK) => (
               <tr key={rK} className="hover:bg-slate-50/80 dark:hover:bg-slate-700/30">
-                <td className="p-3.5 font-bold text-slate-900 dark:text-white bg-slate-50/60 dark:bg-slate-900/40">
+                <td className="p-3 font-bold text-slate-900 dark:text-white bg-slate-50 dark:bg-slate-900 sticky start-0 z-10 whitespace-nowrap">
                   {rK}
                 </td>
                 {colKeys.map((cK) => {
                   const val = matrix[rK]?.[cK] || 0;
                   return (
-                    <td key={cK} className="p-3.5 text-center font-mono font-medium">
+                    <td key={cK} className="p-3 text-center font-mono font-medium">
                       {val !== 0 ? val.toLocaleString() : '-'}
                     </td>
                   );
                 })}
-                <td className="p-3.5 text-center font-mono font-bold bg-brand-50/30 dark:bg-brand-950/30 text-brand-600 dark:text-brand-400">
+                <td className="p-3 text-center font-mono font-bold bg-brand-50/30 dark:bg-brand-950/30 text-brand-600 dark:text-brand-400">
                   {rowTotals[rK]?.toLocaleString() || 0}
                 </td>
               </tr>
@@ -219,21 +221,30 @@ export const PivotTable: React.FC<PivotTableProps> = ({ sheet }) => {
           </tbody>
           <tfoot className="bg-slate-100/90 dark:bg-slate-900/90 font-bold border-t-2 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white">
             <tr>
-              <td className="p-3.5 text-start bg-slate-200/60 dark:bg-slate-950">
+              <td className="p-3 text-start bg-slate-200/60 dark:bg-slate-950 sticky start-0 z-10">
                 {t.pivot.grandTotal}
               </td>
               {colKeys.map((cK) => (
-                <td key={cK} className="p-3.5 text-center font-mono">
-                  {(colTotals[cK] || 0).toLocaleString()}
+                <td key={cK} className="p-3 text-center font-mono">
+                  {Math.round((colTotals[cK] || 0) * 10) / 10}
                 </td>
               ))}
-              <td className="p-3.5 text-center font-mono font-black text-brand-600 dark:text-brand-400 bg-brand-100/50 dark:bg-brand-950/80">
+              <td className="p-3 text-center font-mono font-black text-brand-600 dark:text-brand-400 bg-brand-100/50 dark:bg-brand-950/80">
                 {grandTotal.toLocaleString()}
               </td>
             </tr>
           </tfoot>
         </table>
       </div>
+
+      <Pagination
+        page={pg.page}
+        totalPages={pg.totalPages}
+        pageSize={pg.pageSize}
+        total={pg.total}
+        onPageChange={pg.setPage}
+        onPageSizeChange={pg.setPageSize}
+      />
     </div>
   );
 };

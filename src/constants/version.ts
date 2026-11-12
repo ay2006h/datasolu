@@ -1,5 +1,5 @@
-export const APP_VERSION = 'v2.5.0';
-export const APP_VERSION_NUMBER = '2.5.0';
+export const APP_VERSION = 'v2.6.0';
+export const APP_VERSION_NUMBER = '2.6.0';
 export const APP_LAST_UPDATED = '2026-11-12';
 
 export interface VersionChangelogItem {
@@ -12,6 +12,26 @@ export interface VersionChangelogItem {
 }
 
 export const VERSION_CHANGELOG: VersionChangelogItem[] = [
+  {
+    version: 'v2.6.0',
+    date: '2026-11-12',
+    titleAr: 'توحيد الهوية البصرية، اختيار الثيمات، تقسيم الصفحات (Paging) في كافة الجداول، وتطوير تجربة الموبايل والكمبيوتر',
+    titleEn: 'Unified Visual Identity, Theme Picker, Full Table Pagination & Mobile/Desktop UX Overhaul',
+    highlightsAr: [
+      'هوية منصة التحليلات البيانية: تصميم معياري موحد يسمح بإضافة وحدات تحليلية جديدة مع الحفاظ على الهوية البصرية.',
+      'مُبدّل الهوية البصرية (Theme Picker): إمكانية الاختيار الفوري بين 4 هويات لونية متناسقة (أزرق محيطي، نيلي ملكي، فيروزي تنفيذي، بنفسجي) مع حفظ التفضيل.',
+      'نظام تقسيم الصفحات (Paging) وتحديد عدد العناصر: إضافة ترقيم صفحات واختيار عدد العناصر بالصفحة في جميع الجداول والقوائم الكبيرة عبر المبيعات والمخزون والبورصة.',
+      'شريط تنقل سفلي للموبايل (Mobile Bottom Bar): سهولة التنقل بين الأقسام بلمسة واحدة على الهواتف مع تثبيت العمود الأول للجداول العريضة.',
+      'تقليل النصوص والشروحات الزائدة وتجربة البيانات الجاهزة بضغطة واحدة من الصفحة الرئيسية.',
+    ],
+    highlightsEn: [
+      'Modular Data Analytics Platform identity ready for adding new analytical workspaces.',
+      'Visual Identity Theme Picker with 4 cohesive palettes (Ocean Blue, Royal Indigo, Executive Teal, Violet).',
+      'Client-side Pagination & Page-Size selector across all large tables and lists in Sales, Inventory, and Stocks.',
+      'Fixed Mobile Bottom Navigation Bar and sticky first columns on wide tables.',
+      'Streamlined microcopy and 1-click Demo Data preview directly from the Home page.',
+    ],
+  },
   {
     version: 'v2.5.0',
     date: '2026-11-12',

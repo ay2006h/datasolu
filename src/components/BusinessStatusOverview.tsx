@@ -53,21 +53,16 @@ export const BusinessStatusOverview: React.FC<BusinessStatusOverviewProps> = ({
   const healthBadge = getHealthBadge(statusData.overallHealthScore);
 
   return (
-    <div className="bg-white dark:bg-slate-800/90 rounded-3xl p-6 border border-slate-200 dark:border-slate-700/80 shadow-sm">
+    <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-5 sm:p-6 border border-slate-200 dark:border-slate-700 shadow-sm">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-100 dark:border-slate-700/60">
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-5 pb-3 border-b border-slate-100 dark:border-slate-700/60">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-brand-500/20">
-            <Activity className="w-6 h-6" />
+          <div className="w-9 h-9 rounded-xl bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 flex items-center justify-center">
+            <Activity className="w-5 h-5" />
           </div>
-          <div>
-            <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
-              {t.businessStatus.title}
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              {t.businessStatus.subtitle}
-            </p>
-          </div>
+          <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+            {t.businessStatus.title}
+          </h3>
         </div>
 
         {/* Health status badge */}

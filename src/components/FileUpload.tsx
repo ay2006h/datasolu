@@ -65,8 +65,8 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       console.error(err);
       setErrorMessage(
         isAr
-          ? `حدث خطأ أثناء قراءة ملف الإكسيل: ${err.message || 'تأكد من سلامة تنسيق الملف'}`
-          : `Error parsing Excel file: ${err.message || 'Please check file format'}`
+          ? `خطأ أثناء قراءة الملف: ${err.message || 'تأكد من التنسيق'}`
+          : `Error parsing file: ${err.message || 'Check file format'}`
       );
     } finally {
       setIsLoading(false);
@@ -81,15 +81,6 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     }
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = () => {
-    setIsDragging(false);
-  };
-
   const loadSample = (type: 'sales' | 'projects' | 'inventory') => {
     if (type === 'inventory') {
       onDataLoaded(getSampleInventoryData(language));
@@ -102,10 +93,10 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   };
 
   const isInventoryMode = mode === 'inventory';
+  const NextIcon = dir === 'rtl' ? ArrowLeft : ArrowRight;
 
   return (
     <div className="w-full space-y-4">
-      {/* Hidden File Input (Distinct ID per mode, plus global trigger support) */}
       <input
         type="file"
         id="global-excel-file-input"
@@ -120,55 +111,24 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         className="hidden"
       />
 
-      {/* Active Workbook Status Banner (when workbook exists for current mode) */}
+      {/* Active Workbook Compact Bar */}
       {workbook && (
-        <div
-          className={`bg-white dark:bg-slate-800/90 rounded-2xl p-4 border shadow-sm flex flex-wrap items-center justify-between gap-4 ${
-            isInventoryMode
-              ? 'border-amber-300 dark:border-amber-700/70'
-              : 'border-emerald-300 dark:border-emerald-700/70'
-          }`}
-        >
-          <div className="flex items-center gap-3">
-            <div
-              className={`w-11 h-11 rounded-xl flex items-center justify-center shadow-sm ${
-                isInventoryMode
-                  ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400'
-                  : 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400'
-              }`}
-            >
-              {isInventoryMode ? (
-                <Package className="w-6 h-6" />
-              ) : (
-                <FileSpreadsheet className="w-6 h-6" />
-              )}
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 flex items-center justify-center flex-shrink-0">
+              {isInventoryMode ? <Package className="w-5 h-5" /> : <FileSpreadsheet className="w-5 h-5" />}
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <span
-                  className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
-                    isInventoryMode
-                      ? 'bg-amber-500 text-slate-950'
-                      : 'bg-emerald-600 text-white'
-                  }`}
-                >
-                  {isInventoryMode
-                    ? isAr
-                      ? 'ملف المخزون والأصناف المستقل'
-                      : 'Inventory File'
-                    : isAr
-                    ? 'ملف المبيعات المستقل'
-                    : 'Sales File'}
-                </span>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate">
                   {workbook.fileName}
                 </h3>
-                <span className="text-[11px] bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 px-2.5 py-0.5 rounded-full font-bold border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  {isAr ? 'جاهز للتحليل' : 'Ready'}
+                <span className="text-[11px] bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 px-2 py-0.5 rounded-full font-bold border border-emerald-200 dark:border-emerald-800 inline-flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" />
+                  {isAr ? 'نشط' : 'Active'}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 {workbook.sheets[workbook.activeSheet]?.rowCount.toLocaleString() || 0}{' '}
                 {t.upload.totalRows} •{' '}
                 {workbook.sheets[workbook.activeSheet]?.columns.length || 0}{' '}
@@ -177,137 +137,89 @@ export const FileUpload: React.FC<FileUploadProps> = ({
             </div>
           </div>
 
-          {/* Sheet Selector & Action buttons */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {workbook.sheetNames.length > 1 && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                  {t.upload.sheetSelector}
-                </span>
-                <select
-                  value={workbook.activeSheet}
-                  onChange={(e) => onSheetChange(e.target.value)}
-                  className="text-xs font-semibold bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-1.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500"
-                >
-                  {workbook.sheetNames.map((name) => (
-                    <option key={name} value={name}>
-                      {name} ({workbook.sheets[name]?.rowCount || 0}{' '}
-                      {isAr ? 'سجل' : 'rows'})
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <select
+                value={workbook.activeSheet}
+                onChange={(e) => onSheetChange(e.target.value)}
+                className="text-xs font-semibold bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-1.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              >
+                {workbook.sheetNames.map((name) => (
+                  <option key={name} value={name}>
+                    {name} ({workbook.sheets[name]?.rowCount || 0})
+                  </option>
+                ))}
+              </select>
             )}
 
-            {/* Direct Upload Trigger Button */}
             <button
               onClick={() => fileInputRef.current?.click()}
-              className={`flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-xl text-white shadow-sm transition-all hover:scale-105 ${
-                isInventoryMode
-                  ? 'bg-amber-600 hover:bg-amber-700'
-                  : 'bg-emerald-600 hover:bg-emerald-700'
-              }`}
+              className="flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white shadow-sm transition-all"
             >
               <FolderOpen className="w-4 h-4" />
-              <span>
-                {isInventoryMode
-                  ? isAr
-                    ? 'رفع ملف مخزون وأصناف جديد'
-                    : 'Upload Inventory File'
-                  : isAr
-                  ? 'رفع ملف مبيعات جديد'
-                  : 'Upload Sales File'}
-              </span>
+              <span>{isAr ? 'تغيير الملف' : 'Change File'}</span>
             </button>
 
-            {/* Toggle Dropzone view */}
             <button
               onClick={() => setShowDropzone(!showDropzone)}
               className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400"
-              title="Toggle Dropzone"
+              title={isAr ? 'إظهار/إخفاء منطقة الرفع' : 'Toggle upload area'}
             >
-              {showDropzone ? (
-                <ChevronUp className="w-4 h-4" />
-              ) : (
-                <ChevronDown className="w-4 h-4" />
-              )}
+              {showDropzone ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
           </div>
         </div>
       )}
 
-      {/* Main Drag & Drop Zone */}
+      {/* Upload & Quick Sample Zone */}
       {(!workbook || showDropzone) && (
-        <div className="space-y-6">
+        <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 sm:p-6 shadow-sm space-y-5">
           <div
             onDrop={handleDrop}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragging(true);
+            }}
+            onDragLeave={() => setIsDragging(false)}
             onClick={() => fileInputRef.current?.click()}
-            className={`cursor-pointer relative overflow-hidden rounded-3xl border-2 border-dashed transition-all duration-300 p-8 sm:p-10 text-center ${
+            className={`cursor-pointer rounded-2xl border-2 border-dashed transition-all p-6 sm:p-8 text-center ${
               isDragging
-                ? 'border-brand-500 bg-brand-50/70 dark:bg-brand-950/40 scale-[1.01]'
-                : isInventoryMode
-                ? 'border-amber-300 dark:border-amber-700/70 bg-white/80 dark:bg-slate-800/60 hover:border-amber-500 hover:bg-amber-50/30 dark:hover:bg-slate-800/90 shadow-sm'
-                : 'border-emerald-300 dark:border-emerald-700/70 bg-white/80 dark:bg-slate-800/60 hover:border-emerald-500 hover:bg-emerald-50/30 dark:hover:bg-slate-800/90 shadow-sm'
+                ? 'border-brand-500 bg-brand-50/70 dark:bg-brand-950/40'
+                : 'border-slate-300 dark:border-slate-700 hover:border-brand-500 bg-slate-50/60 dark:bg-slate-900/40'
             }`}
           >
-            <div className="max-w-lg mx-auto space-y-4">
-              <div
-                className={`w-16 h-16 rounded-2xl text-white flex items-center justify-center mx-auto shadow-lg ${
-                  isInventoryMode
-                    ? 'bg-gradient-to-tr from-amber-500 to-orange-500 shadow-amber-500/25'
-                    : 'bg-gradient-to-tr from-emerald-600 to-teal-500 shadow-emerald-500/25'
-                }`}
-              >
+            <div className="max-w-md mx-auto space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-brand-600 text-white flex items-center justify-center mx-auto shadow-md shadow-brand-500/20">
                 {isLoading ? (
-                  <div className="w-8 h-8 border-3 border-white border-t-transparent rounded-full animate-spin" />
+                  <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
-                  <UploadCloud className="w-8 h-8" />
+                  <UploadCloud className="w-6 h-6" />
                 )}
               </div>
 
               <div>
-                <h3 className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white">
+                <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
                   {isLoading
                     ? t.upload.processing
                     : isInventoryMode
                     ? isAr
-                      ? 'ارفع ملف الإكسيل الخاص بـ (تحليل المخزون وحركة الأصناف)'
-                      : 'Upload Excel File for Inventory & Product Velocity'
+                      ? 'ارفع ملف المخزون والأصناف'
+                      : 'Upload Inventory Excel File'
                     : isAr
-                    ? 'ارفع ملف الإكسيل الخاص بـ (تحليل المبيعات والإيرادات)'
-                    : 'Upload Excel File for Sales & Revenue Analysis'}
+                    ? 'ارفع ملف المبيعات'
+                    : 'Upload Sales Excel File'}
                 </h3>
-                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-                  {isInventoryMode
-                    ? isAr
-                      ? 'ملف المخزون مستقل تماماً عن ملف المبيعات — بعد الرفع ستظهر لك خطوة ربط أعمدة الأصناف والكميات والمخزون'
-                      : 'Inventory file is completely separate from Sales file — includes interactive column mapping'
-                    : isAr
-                    ? 'ملف المبيعات مستقل تماماً عن ملف المخزون — بعد الرفع ستظهر لك خطوة ربط أعمدة المبيعات لاستخراج نقاط القوة والضعف والمقترحات'
-                    : 'Sales file is completely separate from Inventory file — includes column mapping & SWOT analysis'}
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  {isAr ? 'يدعم ملفات .xlsx و .xls و .csv' : 'Supports .xlsx, .xls, and .csv files'}
                 </p>
               </div>
 
               <button
                 type="button"
-                className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-bold shadow-md transition-all hover:scale-105 ${
-                  isInventoryMode
-                    ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-500/20'
-                    : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20'
-                }`}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs sm:text-sm font-bold shadow-sm transition-all"
               >
                 <FileSpreadsheet className="w-4 h-4" />
-                <span>
-                  {isInventoryMode
-                    ? isAr
-                      ? 'اختر ملف المخزون والأصناف (.xlsx / .csv)'
-                      : 'Browse Inventory Excel File'
-                    : isAr
-                    ? 'اختر ملف المبيعات (.xlsx / .csv)'
-                    : 'Browse Sales Excel File'}
-                </span>
+                <span>{isAr ? 'اختيار ملف من جهازك' : 'Choose File'}</span>
               </button>
             </div>
 
@@ -318,103 +230,75 @@ export const FileUpload: React.FC<FileUploadProps> = ({
             )}
           </div>
 
-          {/* Quick Try Samples Section tailored to active mode */}
-          <div className="bg-slate-100/70 dark:bg-slate-800/40 rounded-2xl p-6 border border-slate-200 dark:border-slate-700/80">
-            <div className="flex items-center gap-2 mb-4">
+          {/* Quick Demo Datasets */}
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60">
+            <div className="flex items-center gap-2 mb-3">
               <Sparkles className="w-4 h-4 text-brand-500" />
-              <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                {isInventoryMode
-                  ? isAr
-                    ? 'أو جرب نموذج بيانات المخزون والأصناف الجاهز:'
-                    : 'Or try the sample Inventory & Products dataset:'
-                  : isAr
-                  ? 'أو جرب أحد نماذج بيانات المبيعات الجاهزة:'
-                  : 'Or try a ready-made Sales dataset:'}
-              </h4>
+              <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                {isAr ? 'أو استعرض لوحة التحكم ببيانات تجريبية جاهزة:' : 'Or preview with a sample dataset:'}
+              </span>
             </div>
 
             {isInventoryMode ? (
-              <div className="grid grid-cols-1 gap-4">
-                <button
-                  onClick={() => loadSample('inventory')}
-                  className="flex items-start gap-4 p-4 rounded-xl bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 hover:border-amber-500 hover:shadow-md transition-all text-start group"
-                >
-                  <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
-                    <Package className="w-5 h-5" />
+              <button
+                onClick={() => loadSample('inventory')}
+                className="w-full flex items-center justify-between gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 hover:border-brand-500 transition-all text-start group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-brand-100 dark:bg-brand-950 text-brand-600 dark:text-brand-400 flex items-center justify-center flex-shrink-0">
+                    <Package className="w-4 h-4" />
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-bold text-slate-900 dark:text-white">
-                        {isAr
-                          ? 'نموذج المخزون: جرد وحركة الأصناف، الكميات المباعة، والرصيد الحالي'
-                          : 'Inventory Template: SKU Velocity, Sold Quantities & Current Stock'}
-                      </span>
-                      {dir === 'rtl' ? (
-                        <ArrowLeft className="w-4 h-4 text-slate-400 group-hover:text-amber-500 group-hover:-translate-x-1 transition-all" />
-                      ) : (
-                        <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-amber-500 group-hover:translate-x-1 transition-all" />
-                      )}
-                    </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      {isAr
-                        ? 'يحتوي على أكواد الأصناف، الأقسام، الكميات المسحوبة، المخزون المتبقي، التكلفة وصافي الربح لاختبار الأصناف الكينج وخطة التوريد.'
-                        : 'Includes SKUs, categories, sold quantities, remaining stock, cost, and net profit for King Items & restock testing.'}
-                    </p>
+                  <div>
+                    <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white block">
+                      {isAr ? 'نموذج المخزون وحركة الأصناف' : 'Inventory & SKU Velocity Sample'}
+                    </span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                      {isAr ? 'الأصناف الكينج، تصنيف ABC، وخطة التوريد' : 'King items, ABC velocity & restock plan'}
+                    </span>
                   </div>
-                </button>
-              </div>
+                </div>
+                <NextIcon className="w-4 h-4 text-slate-400 group-hover:text-brand-500 transition-colors" />
+              </button>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <button
                   onClick={() => loadSample('sales')}
-                  className="flex items-start gap-4 p-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-emerald-500 hover:shadow-md transition-all text-start group"
+                  className="flex items-center justify-between gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 hover:border-brand-500 transition-all text-start group"
                 >
-                  <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
-                    <TrendingUp className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-bold text-slate-900 dark:text-white">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-brand-100 dark:bg-brand-950 text-brand-600 dark:text-brand-400 flex items-center justify-center flex-shrink-0">
+                      <TrendingUp className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white block">
                         {t.upload.sampleSales}
                       </span>
-                      {dir === 'rtl' ? (
-                        <ArrowLeft className="w-4 h-4 text-slate-400 group-hover:text-emerald-500 group-hover:-translate-x-1 transition-all" />
-                      ) : (
-                        <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
-                      )}
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                        {isAr ? 'إيرادات، أرباح، فروع، وتشخيص SWOT' : 'Revenue, profit, branches & SWOT'}
+                      </span>
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      {isAr
-                        ? 'مبيعات شهرية، أرباح الفروع، فئات المنتجات، العملاء، ونقاط القوة والضعف.'
-                        : 'Monthly sales, branch profits, product categories, clients, and SWOT insights.'}
-                    </p>
                   </div>
+                  <NextIcon className="w-4 h-4 text-slate-400 group-hover:text-brand-500 transition-colors" />
                 </button>
 
                 <button
                   onClick={() => loadSample('projects')}
-                  className="flex items-start gap-4 p-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-indigo-500 hover:shadow-md transition-all text-start group"
+                  className="flex items-center justify-between gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 hover:border-brand-500 transition-all text-start group"
                 >
-                  <div className="w-10 h-10 rounded-lg bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
-                    <Briefcase className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-bold text-slate-900 dark:text-white">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-brand-100 dark:bg-brand-950 text-brand-600 dark:text-brand-400 flex items-center justify-center flex-shrink-0">
+                      <Briefcase className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white block">
                         {t.upload.sampleProjects}
                       </span>
-                      {dir === 'rtl' ? (
-                        <ArrowLeft className="w-4 h-4 text-slate-400 group-hover:text-indigo-500 group-hover:-translate-x-1 transition-all" />
-                      ) : (
-                        <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-500 group-hover:translate-x-1 transition-all" />
-                      )}
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                        {isAr ? 'ميزانيات، مصروفات، ونسب إنجاز' : 'Budgets, spending & completion'}
+                      </span>
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      {isAr
-                        ? 'الميزانيات المعتمدة، المصروف الفعلي، نسب الإنجاز، وموقف المشاريع.'
-                        : 'Project budgets, actual spending, completion rates, and operations status.'}
-                    </p>
                   </div>
+                  <NextIcon className="w-4 h-4 text-slate-400 group-hover:text-brand-500 transition-colors" />
                 </button>
               </div>
             )}

@@ -1,4 +1,13 @@
 /** @type {import('tailwindcss').Config} */
+
+// Brand palette is driven by CSS variables (see src/theme/palette.ts) so the user can pick
+// a visual identity at runtime. `indigo` and `violet` are aliased to the brand palette so that
+// every accent across the platform stays unified with the selected identity.
+const brandVar = (shade) => `rgb(var(--brand-${shade}) / <alpha-value>)`;
+const brandScale = Object.fromEntries(
+  ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950'].map((s) => [s, brandVar(s)])
+);
+
 export default {
   content: [
     "./index.html",
@@ -12,19 +21,9 @@ export default {
         inter: ['Inter', 'sans-serif'],
       },
       colors: {
-        brand: {
-          50: '#f0f9ff',
-          100: '#e0f2fe',
-          200: '#bae6fd',
-          300: '#7dd3fc',
-          400: '#38bdf8',
-          500: '#0ea5e9',
-          600: '#0284c7',
-          700: '#0369a1',
-          800: '#075985',
-          900: '#0c4a6e',
-          950: '#082f49',
-        }
+        brand: brandScale,
+        indigo: brandScale,
+        violet: brandScale,
       }
     },
   },

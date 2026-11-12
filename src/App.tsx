@@ -234,9 +234,57 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     if (activeSalesSheet) {
-      setSalesMapping(autoDetectSalesMapping(activeSalesSheet.columns));
+      const detected = autoDetectSalesMapping(activeSalesSheet.columns);
+      try {
+        const savedRaw = localStorage.getItem('datasolu_sales_mapping_v1');
+        if (savedRaw) {
+          const saved = JSON.parse(savedRaw) as Partial<SalesColumnMapping>;
+          const colNames = new Set(activeSalesSheet.columns.map((c) => c.name));
+          const merged: SalesColumnMapping = { ...detected };
+          const colKeys = [
+            'revenueCol',
+            'profitCol',
+            'costCol',
+            'qtyCol',
+            'categoryCol',
+            'regionCol',
+            'clientCol',
+            'salespersonCol',
+            'dateCol',
+            'statusCol',
+          ] as const;
+          colKeys.forEach((k) => {
+            const candidate = saved[k];
+            if (candidate && colNames.has(candidate)) {
+              merged[k] = candidate;
+            }
+          });
+          if (saved.revenueType) merged.revenueType = saved.revenueType;
+          if (saved.costType) merged.costType = saved.costType;
+          setSalesMapping(merged);
+          return;
+        }
+      } catch {
+        // ignore storage errors
+      }
+      setSalesMapping(detected);
     }
   }, [activeSalesSheet]);
+
+  const handleUpdateSalesMapping = React.useCallback(
+    (updater: React.SetStateAction<SalesColumnMapping>) => {
+      setSalesMapping((prev) => {
+        const next = typeof updater === 'function' ? updater(prev) : updater;
+        try {
+          localStorage.setItem('datasolu_sales_mapping_v1', JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+    },
+    []
+  );
 
   // Dynamic calculations for Sales Mode (respecting salesMapping & salesCurrency)
   const kpis = useMemo(() => {
@@ -336,323 +384,328 @@ export const App: React.FC = () => {
       {/* Main Content Body */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-8">
         {/* =====================================================================
-            VIEW 1: MAIN LANDING GATEWAY (اختيار تحليل المبيعات أو تحليل المخزون)
+            VIEW 1: MAIN LANDING GATEWAY (منصة التحليلات البيانية الذكية القابلة للتوسع)
            ===================================================================== */}
         {appMode === 'home' && (
-          <div className="space-y-10 py-2">
+          <div className="space-y-8 py-1">
             {/* Hero Welcome Section */}
-            <div className="text-center max-w-3xl mx-auto space-y-4">
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-brand-100 dark:bg-brand-950/80 text-brand-700 dark:text-brand-300 text-xs font-extrabold border border-brand-200 dark:border-brand-800">
-                <Sparkles className="w-4 h-4 text-brand-500" />
-                <span>
-                  {isAr
-                    ? 'منصة DataSolu الذكية — ملفات مستقلة وتخصيص كامل للأعمدة'
-                    : 'DataSolu BI Pro — Independent Workspaces & Smart Column Mapping'}
+            <div className="text-center max-w-3xl mx-auto space-y-3">
+              <div className="inline-flex flex-wrap items-center justify-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-brand-100 dark:bg-brand-950/80 text-brand-700 dark:text-brand-300 text-xs font-extrabold border border-brand-200 dark:border-brand-800">
+                  <Sparkles className="w-3.5 h-3.5 text-brand-500" />
+                  <span>
+                    {isAr
+                      ? 'منصة DataSolu للتحليلات البيانية الذكية'
+                      : 'DataSolu Modular Data Analytics Platform'}
+                  </span>
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 text-xs font-bold border border-emerald-200 dark:border-emerald-800">
+                  <Lock className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>
+                    {isAr
+                      ? 'معالجة وحفظ محلي 100% على جهازك'
+                      : '100% Local Processing & Storage'}
+                  </span>
                 </span>
               </div>
 
               <h1 className="text-2xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
                 {isAr
-                  ? 'اختر نوع التحليل الذي ترغب في العمل عليه الآن'
-                  : 'Choose Your Analytics Workspace'}
+                  ? 'اختر وحدة التحليلات للبدء فوراً'
+                  : 'Select Your Analytics Module'}
               </h1>
 
-              <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed">
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 max-w-2xl mx-auto">
                 {isAr
-                  ? 'يفتح الموقع فارغاً تماماً بدون أي بيانات محاكاة. اختر القسم المطلوب لبدء العمل مع حفظ تلقائي داخلي لكل ما تدخله.'
-                  : 'The platform opens completely empty with zero mock data. Choose your workspace below with automatic internal local storage.'}
+                  ? 'منصة موحدة لتحليل البيانات المالية والتشغيلية والأسواق، مصممة بمرونة لإضافة وحدات تحليلية متخصصة مع حفظ محلي مستقل لكل قسم.'
+                  : 'A unified, extensible analytics suite for financial, operational, and market data with independent local storage per module.'}
               </p>
             </div>
 
-            {/* PROMINENT LOCAL-ONLY PRIVACY FEATURE BANNER (البيانات تحفظ داخلياً فقط لا علاقة لنا ببياناتك) */}
-            <div className="rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 dark:from-emerald-950/60 dark:via-slate-900 dark:to-teal-950/50 border-2 border-emerald-500/50 p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-start gap-3.5">
-                <div className="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 shadow-md">
-                  <Lock className="w-6 h-6" />
-                </div>
-                <div className="space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-700 text-white uppercase">
-                      {isAr ? 'ميزة الحفظ الداخلي والخصوصية 100%' : '100% Local-Only Storage'}
-                    </span>
-                    <h2 className="text-sm sm:text-base font-black text-slate-900 dark:text-white">
-                      {isAr
-                        ? 'بياناتك تُحفظ داخلياً على جهازك فقط — لا علاقة لنا ببياناتك إطلاقاً'
-                        : 'Your Data is Saved Internally on Your Device Only — Zero Server Access'}
-                    </h2>
-                  </div>
-                  <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
-                    {isAr
-                      ? 'جميع الملفات والمعلومات التي تدخلها (سواء في تحليل المبيعات، المخزون، أو فحص الأسهم والمحفظة) يتم معالجتها وحفظها داخلياً في متصفحك وجهازك الشخصي فقط (Local Storage). لا يتم إرسال أو رفع أي بيانات لأي خادم خارجي، ولا علاقة لنا ببياناتك ولا نطلع عليها بأي شكل.'
-                      : 'All files and information you enter across Sales, Inventory, or Stock Market Portfolio are processed and saved strictly inside your browser on your own device. Nothing is uploaded to any external server and we have no relation or access to your data.'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Triple Choice Cards: Sales Analysis vs Inventory Analysis vs Stock Market Analysis */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* OPTION 1: SALES ANALYSIS CARD (تحليل المبيعات) */}
+            {/* Unified Analytics Modules Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {/* MODULE 1: SALES ANALYSIS CARD (تحليل المبيعات والأداء المالي) */}
               <div
                 onClick={() => {
                   setAppMode('sales');
                   setActiveTab('dashboard');
                 }}
-                className="cursor-pointer group relative rounded-3xl bg-white dark:bg-slate-800/90 border-2 border-emerald-500/30 hover:border-emerald-500 dark:border-emerald-500/30 dark:hover:border-emerald-400 p-7 sm:p-8 shadow-lg hover:shadow-2xl hover:shadow-emerald-500/10 transition-all duration-300 flex flex-col justify-between overflow-hidden"
+                className="cursor-pointer group relative rounded-2xl bg-white dark:bg-slate-800/90 border border-slate-200/90 dark:border-slate-700/80 hover:border-brand-500 dark:hover:border-brand-400 p-6 shadow-sm hover:shadow-xl hover:shadow-brand-500/10 transition-all duration-200 flex flex-col justify-between overflow-hidden"
               >
-                <div className="absolute -top-24 -end-24 w-56 h-56 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none group-hover:bg-emerald-500/20 transition-all" />
-
-                <div className="space-y-6 relative z-10">
+                <div className="space-y-4 relative z-10">
                   <div className="flex items-center justify-between">
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/30 group-hover:scale-110 transition-transform">
-                      <TrendingUp className="w-8 h-8" />
+                    <div className="w-12 h-12 rounded-2xl bg-brand-600 text-white flex items-center justify-center shadow-md shadow-brand-600/25 group-hover:scale-105 transition-transform">
+                      <TrendingUp className="w-6 h-6" />
                     </div>
-                    <span className="px-3.5 py-1 rounded-full text-xs font-extrabold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                      {isAr ? 'ملف مبيعات مستقل' : 'Dedicated Sales File'}
+                    <span className="px-3 py-1 rounded-full text-[11px] font-extrabold bg-brand-50 dark:bg-brand-950/80 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800">
+                      {salesWorkbook
+                        ? `${isAr ? 'نشط:' : 'Active:'} ${salesWorkbook.fileName.slice(0, 18)}`
+                        : isAr
+                        ? 'تحليلات تجارية ومالية'
+                        : 'Commercial & Financial'}
                     </span>
                   </div>
 
                   <div>
-                    <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                    <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
                       {isAr
-                        ? '1. قسم تحليل المبيعات والأداء المالي'
-                        : '1. Sales & Financial Performance Analysis'}
+                        ? 'تحليلات المبيعات والأداء المالي'
+                        : 'Sales & Financial Analytics'}
                     </h2>
-                    <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-2 leading-relaxed">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
                       {isAr
-                        ? 'ارفع ملف المبيعات الخاص بك، وقم بربط الأعمدة (الإيرادات، الأرباح، التكلفة، الفئات، الفروع، العملاء) لاستخراج نقاط القوة والضعف والمقترحات التنفيذية لزيادة المبيعات.'
-                        : 'Upload your sales Excel sheet, map revenue/profit/category/region columns, and uncover strengths, weaknesses, and actionable sales growth proposals.'}
+                        ? 'تحليل الإيرادات والأرباح والفروع والعملاء وتشخيص نقاط القوة والضعف والمقترحات.'
+                        : 'Analyze revenue, profit, branches, clients, SWOT diagnosis, and growth targets.'}
                     </p>
                   </div>
 
-                  {/* Feature Checklist */}
-                  <div className="space-y-2.5 pt-2 border-t border-slate-100 dark:border-slate-700/70">
-                    <div className="flex items-center gap-2.5 text-xs font-bold text-slate-700 dark:text-slate-200">
-                      <Settings2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                  <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-700/60">
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200">
+                      <Settings2 className="w-4 h-4 text-brand-500 flex-shrink-0" />
                       <span>
                         {isAr
-                          ? 'خطوة Mapping مخصصة لأعمدة المبيعات والأرباح والفروع والعملاء'
-                          : 'Dedicated Column Mapping for Revenue, Profit, Branches & Clients'}
+                          ? 'ربط ذكي للأعمدة وحفظ الإعدادات تلقائياً'
+                          : 'Smart column mapping with auto-saved preferences'}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2.5 text-xs font-bold text-slate-700 dark:text-slate-200">
-                      <ShieldCheck className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200">
+                      <ShieldCheck className="w-4 h-4 text-brand-500 flex-shrink-0" />
                       <span>
                         {isAr
-                          ? 'تحديد نقاط القوة ونقاط الضعف والفجوات البيعية بدقة'
-                          : 'Automated diagnosis of Sales Strengths & Weaknesses'}
+                          ? 'تشخيص SWOT الآلي ومقترحات نمو المبيعات'
+                          : 'Automated SWOT diagnosis & growth proposals'}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2.5 text-xs font-bold text-slate-700 dark:text-slate-200">
-                      <Rocket className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200">
+                      <FileSpreadsheet className="w-4 h-4 text-brand-500 flex-shrink-0" />
                       <span>
                         {isAr
-                          ? 'مقترحات عملية قابلة للتطبيق لتحسين المبيعات وتعظيم الربحية'
-                          : 'Actionable recommendations to boost sales & expand margins'}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2.5 text-xs font-bold text-slate-700 dark:text-slate-200">
-                      <FileSpreadsheet className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-                      <span>
-                        {isAr
-                          ? 'مقارنة الفترات والشهور والرسوم البيانية التفاعلية'
-                          : 'Period comparisons, trend charts & interactive pivot tables'}
+                          ? 'أهداف شهرية، مقارنة فترات، وجداول محورية'
+                          : 'Monthly targets, period comparisons & pivot tables'}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-8 pt-4 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                    {salesWorkbook
-                      ? `${isAr ? 'الملف الحالي:' : 'Active:'} ${salesWorkbook.fileName}`
-                      : isAr
-                      ? 'جاهز لرفع ملف المبيعات'
-                      : 'Ready for Sales upload'}
-                  </span>
-                  <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 group-hover:bg-emerald-700 text-white text-xs sm:text-sm font-extrabold shadow-md shadow-emerald-600/20 transition-all">
-                    <span>{isAr ? 'الدخول لتحليل المبيعات' : 'Open Sales Analysis'}</span>
+                <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSalesWorkbook(getSampleSalesData(language));
+                      setAppMode('sales');
+                      setActiveTab('dashboard');
+                    }}
+                    className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700/70 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-colors flex items-center gap-1.5"
+                  >
+                    <Rocket className="w-3.5 h-3.5 text-brand-500" />
+                    <span>{isAr ? 'تجربة ببيانات جاهزة' : 'Try Demo Data'}</span>
+                  </button>
+
+                  <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-600 group-hover:bg-brand-700 text-white text-xs font-extrabold shadow-sm transition-all">
+                    <span>{isAr ? 'فتح القسم' : 'Open'}</span>
                     {dir === 'rtl' ? (
-                      <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                      <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
                     ) : (
-                      <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                      <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                     )}
                   </span>
                 </div>
               </div>
 
-              {/* OPTION 2: INVENTORY & PRODUCT VELOCITY CARD (تحليل المخزون والأصناف) */}
+              {/* MODULE 2: INVENTORY & PRODUCT VELOCITY CARD (تحليل المخزون والأصناف) */}
               <div
                 onClick={() => {
                   setAppMode('inventory');
                   setActiveTab('inventory_main');
                 }}
-                className="cursor-pointer group relative rounded-3xl bg-white dark:bg-slate-800/90 border-2 border-amber-500/40 hover:border-amber-500 dark:border-amber-500/30 dark:hover:border-amber-400 p-7 sm:p-8 shadow-lg hover:shadow-2xl hover:shadow-amber-500/10 transition-all duration-300 flex flex-col justify-between overflow-hidden"
+                className="cursor-pointer group relative rounded-2xl bg-white dark:bg-slate-800/90 border border-slate-200/90 dark:border-slate-700/80 hover:border-brand-500 dark:hover:border-brand-400 p-6 shadow-sm hover:shadow-xl hover:shadow-brand-500/10 transition-all duration-200 flex flex-col justify-between overflow-hidden"
               >
-                <div className="absolute -top-24 -end-24 w-56 h-56 bg-amber-500/10 rounded-full blur-3xl pointer-events-none group-hover:bg-amber-500/20 transition-all" />
-
-                <div className="space-y-6 relative z-10">
+                <div className="space-y-4 relative z-10">
                   <div className="flex items-center justify-between">
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-slate-950 flex items-center justify-center shadow-lg shadow-amber-500/30 group-hover:scale-110 transition-transform">
-                      <Package className="w-8 h-8" />
+                    <div className="w-12 h-12 rounded-2xl bg-brand-600 text-white flex items-center justify-center shadow-md shadow-brand-600/25 group-hover:scale-105 transition-transform">
+                      <Package className="w-6 h-6" />
                     </div>
-                    <span className="px-3.5 py-1 rounded-full text-xs font-extrabold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
-                      {isAr ? 'ملف مخزون وأصناف مستقل' : 'Dedicated Inventory File'}
+                    <span className="px-3 py-1 rounded-full text-[11px] font-extrabold bg-brand-50 dark:bg-brand-950/80 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800">
+                      {inventoryWorkbook
+                        ? `${isAr ? 'نشط:' : 'Active:'} ${inventoryWorkbook.fileName.slice(0, 18)}`
+                        : isAr
+                        ? 'تحليلات سلاسل الإمداد'
+                        : 'Supply Chain & SKUs'}
                     </span>
                   </div>
 
                   <div>
-                    <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                    <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
                       {isAr
-                        ? '2. قسم تحليل المخزون والأصناف الأكثر مبيعاً'
-                        : '2. Inventory, Best-Sellers & King Items Analysis'}
+                        ? 'تحليلات المخزون وحركة الأصناف'
+                        : 'Inventory & SKU Velocity Analytics'}
                     </h2>
-                    <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-2 leading-relaxed">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
                       {isAr
-                        ? 'ارفع ملف الأصناف والمخزون المستقل، وحدد فترة المبيعات بالأيام لتصنيف الأصناف (سريعة، متوسطة، ضعيفة)، واكتشاف الأصناف الكينج، واقتراح الكميات المطلوب توفيرها.'
-                        : 'Upload your separate inventory/SKU sheet, set the sales period duration in days, classify Fast/Medium/Slow movers, find King Items, and compute restock quantities.'}
+                        ? 'تصنيف سرعة دوران الأصناف (ABC)، اكتشاف الأصناف الكينج، وحساب كميات وميزانية التوريد.'
+                        : 'Classify ABC SKU velocity, uncover high-profit King Items, and optimize restock orders.'}
                     </p>
                   </div>
 
-                  {/* Feature Checklist */}
-                  <div className="space-y-2.5 pt-2 border-t border-slate-100 dark:border-slate-700/70">
-                    <div className="flex items-center gap-2.5 text-xs font-bold text-slate-700 dark:text-slate-200">
-                      <Settings2 className="w-4 h-4 text-amber-500 flex-shrink-0" />
-                      <span>
-                        {isAr
-                          ? 'خطوة Mapping لأعمدة اسم الصنف، القسم، الكمية المباعة، الرصيد، والربح'
-                          : 'Column Mapping for SKU Name, Category, Sold Qty, Stock & Profit'}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2.5 text-xs font-bold text-slate-700 dark:text-slate-200">
+                  <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-700/60">
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200">
                       <Crown className="w-4 h-4 text-amber-500 flex-shrink-0" />
                       <span>
                         {isAr
-                          ? 'اكتشاف "الأصناف الكينج" (الأسرع حركة والأعلى ربحية) وتصنيف ABC'
-                          : 'Identify "King Items" (Fast-moving + Top Profit) & ABC Velocity'}
+                          ? 'اكتشاف الأصناف الكينج (الأسرع حركة والأعلى ربحاً)'
+                          : 'Identify King Items (Fastest moving & highest profit)'}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2.5 text-xs font-bold text-slate-700 dark:text-slate-200">
-                      <CheckCircle2 className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200">
+                      <CheckCircle2 className="w-4 h-4 text-brand-500 flex-shrink-0" />
                       <span>
                         {isAr
-                          ? 'تحديد فترة المبيعات يدوياً بالأيام لو الملف بدون تاريخ لحساب المتوسطات بدقة'
-                          : 'Manual sales period days input when file has no date column'}
+                          ? 'محاكي ميزانية أمر الشراء وترتيب الأولويات تلقائياً'
+                          : 'PO budget simulator & automated priority ranking'}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2.5 text-xs font-bold text-slate-700 dark:text-slate-200">
-                      <Sparkles className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200">
+                      <Sparkles className="w-4 h-4 text-brand-500 flex-shrink-0" />
                       <span>
                         {isAr
-                          ? 'اقتراح الكميات الواجب توفيرها من كل صنف وتصدير خطة التوريد Excel'
-                          : 'Suggested replenishment quantities & 1-click Excel order export'}
+                          ? 'كاشف الرواكد والسيولة المجمدة ومقترح الخصم الآمن'
+                          : 'Dead stock capital detector & safe promo discounts'}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-8 pt-4 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                    {inventoryWorkbook
-                      ? `${isAr ? 'الملف الحالي:' : 'Active:'} ${inventoryWorkbook.fileName}`
-                      : isAr
-                      ? 'جاهز لرفع ملف المخزون'
-                      : 'Ready for Inventory upload'}
-                  </span>
-                  <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 group-hover:bg-amber-400 text-slate-950 text-xs sm:text-sm font-extrabold shadow-md shadow-amber-500/20 transition-all">
-                    <span>{isAr ? 'الدخول لتحليل المخزون والأصناف' : 'Open Inventory Analysis'}</span>
+                <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setInventoryWorkbook(getSampleInventoryData(language));
+                      setAppMode('inventory');
+                      setActiveTab('inventory_main');
+                    }}
+                    className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700/70 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-colors flex items-center gap-1.5"
+                  >
+                    <Rocket className="w-3.5 h-3.5 text-brand-500" />
+                    <span>{isAr ? 'تجربة ببيانات جاهزة' : 'Try Demo Data'}</span>
+                  </button>
+
+                  <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-600 group-hover:bg-brand-700 text-white text-xs font-extrabold shadow-sm transition-all">
+                    <span>{isAr ? 'فتح القسم' : 'Open'}</span>
                     {dir === 'rtl' ? (
-                      <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                      <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
                     ) : (
-                      <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                      <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                     )}
                   </span>
                 </div>
               </div>
 
-              {/* OPTION 3: STOCK MARKET & PORTFOLIO INTELLIGENCE CARD (قسم تحليل البورصة المتكامل) */}
+              {/* MODULE 3: STOCK MARKET & PORTFOLIO INTELLIGENCE CARD (تحليلات الأسواق والمحفظة) */}
               <div
                 onClick={() => {
                   setAppMode('stocks');
                   setActiveTab('stocks_overview');
                 }}
-                className="cursor-pointer group relative rounded-3xl bg-white dark:bg-slate-800/90 border-2 border-indigo-500/40 hover:border-indigo-500 dark:border-indigo-500/30 dark:hover:border-indigo-400 p-7 sm:p-8 shadow-lg hover:shadow-2xl hover:shadow-indigo-500/10 transition-all duration-300 flex flex-col justify-between overflow-hidden"
+                className="cursor-pointer group relative rounded-2xl bg-white dark:bg-slate-800/90 border border-slate-200/90 dark:border-slate-700/80 hover:border-brand-500 dark:hover:border-brand-400 p-6 shadow-sm hover:shadow-xl hover:shadow-brand-500/10 transition-all duration-200 flex flex-col justify-between overflow-hidden md:col-span-2 lg:col-span-1"
               >
-                <div className="absolute -top-24 -end-24 w-56 h-56 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none group-hover:bg-indigo-500/20 transition-all" />
-
-                <div className="space-y-6 relative z-10">
+                <div className="space-y-4 relative z-10">
                   <div className="flex items-center justify-between">
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-500 text-white flex items-center justify-center shadow-lg shadow-indigo-500/30 group-hover:scale-110 transition-transform">
-                      <CandlestickChart className="w-8 h-8" />
+                    <div className="w-12 h-12 rounded-2xl bg-brand-600 text-white flex items-center justify-center shadow-md shadow-brand-600/25 group-hover:scale-105 transition-transform">
+                      <CandlestickChart className="w-6 h-6" />
                     </div>
-                    <span className="px-3 py-1 rounded-full text-[11px] font-extrabold bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-800">
-                      {isAr ? 'للاسترشاد فقط — بدون توصيات' : 'Guidance Only — No Advice'}
+                    <span className="px-3 py-1 rounded-full text-[11px] font-extrabold bg-brand-50 dark:bg-brand-950/80 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800">
+                      {isAr ? 'تحليلات الأسواق والمحافظ' : 'Markets & Portfolios'}
                     </span>
                   </div>
 
                   <div>
-                    <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                    <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
                       {isAr
-                        ? '3. قسم تحليل البورصة والمحفظة والخطط المتكامل'
-                        : '3. Stock Market, Portfolio & Trade Plans Hub'}
+                        ? 'تحليلات الأسهم وإدارة المحفظة'
+                        : 'Stock Market & Portfolio Analytics'}
                     </h2>
-                    <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-2 leading-relaxed">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
                       {isAr
-                        ? 'منصة متكاملة لمتابعة ترشيحات الموقع الاسترشادية، تدوين رأيك الشخصي، تسجيل عمليات شراء وبيع الأسهم وتتبع أرباح المحفظة، وبناء الخطط المحتملة والسيناريوهات مع حفظ كامل للمعلومات.'
-                        : 'Integrated stock platform: Site featured picks, personal opinions, buy/sell portfolio tracking, and risk-managed trade plans with auto-save.'}
+                        ? 'فحص الأسعار والمؤشرات الفنية، تتبع صفقات المحفظة والتوزيعات، وبناء خطط التداول الاسترشادية.'
+                        : 'Live market scanner, technical indicators, multi-currency portfolio tracker, and trade plans.'}
                     </p>
                   </div>
 
-                  {/* Feature Checklist */}
-                  <div className="space-y-2.5 pt-2 border-t border-slate-100 dark:border-slate-700/70">
-                    <div className="flex items-center gap-2.5 text-xs font-bold text-slate-700 dark:text-slate-200">
-                      <Crown className="w-4 h-4 text-indigo-500 flex-shrink-0" />
+                  <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-700/60">
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200">
+                      <Wallet className="w-4 h-4 text-brand-500 flex-shrink-0" />
                       <span>
                         {isAr
-                          ? 'ترشيحات المفضلة للموقع (استرشادية) مع تدوين وحفظ الرأي الشخصي لكل سهم'
-                          : 'Site Featured Spotlights + Personal Opinion & Conviction Journal'}
+                          ? 'تتبع المحفظة والتوزيعات النقدية وتوحيد العملات'
+                          : 'Multi-currency portfolio, P&L & dividends tracker'}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2.5 text-xs font-bold text-slate-700 dark:text-slate-200">
-                      <Wallet className="w-4 h-4 text-indigo-500 flex-shrink-0" />
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200">
+                      <Compass className="w-4 h-4 text-brand-500 flex-shrink-0" />
                       <span>
                         {isAr
-                          ? 'شراء وبيع الأسهم وتتبع متوسط التكلفة والأرباح المحققة وغير المحققة'
-                          : 'Buy & Sell Execution Tracker with Weighted Avg Cost & Live P&L'}
+                          ? 'قرارات استرشادية للأسهم المشتراة ومحاكاة التعديل'
+                          : 'Indicator-based candidate decisions & cost simulator'}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2.5 text-xs font-bold text-slate-700 dark:text-slate-200">
-                      <Compass className="w-4 h-4 text-indigo-500 flex-shrink-0" />
-                      <span>
-                        {isAr
-                          ? 'وضع الخطط المحتملة والسيناريوهات الثلاثة وحاسبة حجم الصفقة والمخاطر'
-                          : 'Trade Plan Builder with Bull/Base/Bear Scenarios & R:R Calculator'}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2.5 text-xs font-bold text-slate-700 dark:text-slate-200">
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200">
                       <ShieldAlert className="w-4 h-4 text-amber-500 flex-shrink-0" />
                       <span>
                         {isAr
-                          ? 'حفظ تلقائي للمعلومات + إخلاء مسؤولية واضح (للاسترشاد بدون توصيات)'
-                          : 'Auto-saved locally + JSON/Excel backup & clear Legal Disclaimer'}
+                          ? 'للاسترشاد التحليلي وتنظيم المحفظة بدون توصيات'
+                          : 'Analytical guidance only — 100% local storage'}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-8 pt-4 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                    {isAr ? 'حفظ تلقائي + تصدير Excel' : 'Auto-Save + Excel Export'}
+                <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                    {isAr ? 'تداول • EGX • US • DFM' : 'Tadawul • EGX • US • UAE'}
                   </span>
-                  <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 group-hover:bg-indigo-700 text-white text-xs sm:text-sm font-extrabold shadow-md shadow-indigo-600/20 transition-all">
-                    <span>{isAr ? 'الدخول لتحليل البورصة' : 'Open Stock Market Hub'}</span>
+                  <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-600 group-hover:bg-brand-700 text-white text-xs font-extrabold shadow-sm transition-all">
+                    <span>{isAr ? 'فتح القسم' : 'Open'}</span>
                     {dir === 'rtl' ? (
-                      <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                      <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
                     ) : (
-                      <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                      <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                     )}
                   </span>
                 </div>
+              </div>
+            </div>
+
+            {/* Extensible Analytics Platform Banner (قابلية إضافة وحدات تحليلية جديدة) */}
+            <div className="rounded-2xl bg-white dark:bg-slate-800/70 border border-dashed border-slate-300 dark:border-slate-700 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-brand-50 dark:bg-brand-950/80 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-800 flex items-center justify-center flex-shrink-0">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white">
+                    {isAr
+                      ? 'بنية تحليلات مرنة وقابلة للتوسع (Modular Analytics Architecture)'
+                      : 'Extensible Modular Analytics Architecture'}
+                  </h3>
+                  <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    {isAr
+                      ? 'صُممت المنصة لاستيعاب وحدات تحليلية إضافية بنفس الهوية البصرية الموحدة (مثل: تحليلات العملاء والولاء، القوائم والتدفقات المالية، وتحليلات الموارد البشرية).'
+                      : 'Built on a unified design system ready to plug in additional analytics modules (Customer Cohorts, Financial Statements, HR & Operations).'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                <span className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                  {isAr ? '+ تحليلات العملاء' : '+ Customer Analytics'}
+                </span>
+                <span className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                  {isAr ? '+ التدفقات المالية' : '+ Cashflow Analytics'}
+                </span>
+                <span className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                  {isAr ? '+ تقارير مخصصة' : '+ Custom BI'}
+                </span>
               </div>
             </div>
           </div>
@@ -665,20 +718,18 @@ export const App: React.FC = () => {
           <div className="space-y-8">
             {/* Independent Sales Section Currency Selector & Privacy Bar */}
             <section className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-3 bg-emerald-50/90 dark:bg-slate-800/90 px-4 py-3 rounded-2xl border border-emerald-200 dark:border-slate-700 text-xs">
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
-                    <Lock className="w-4 h-4 text-emerald-600" />
-                    {isAr
-                      ? 'البيانات الحالية محفوظة داخلياً على جهازك فقط — لا علاقة لنا ببياناتك'
-                      : 'Data saved internally on your device only'}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-800/90 px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs text-xs">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 font-bold text-[11px]">
+                    <Lock className="w-3.5 h-3.5" />
+                    {isAr ? 'حفظ محلي 100% على جهازك' : '100% Local Storage'}
                   </span>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2.5">
-                  <div className="flex items-center gap-2 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-emerald-300 dark:border-slate-600">
-                    <span className="font-extrabold text-emerald-700 dark:text-emerald-400">
-                      {isAr ? 'عملة قسم المبيعات:' : 'Sales Section Currency:'}
+                  <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <span className="font-extrabold text-brand-700 dark:text-brand-300">
+                      {isAr ? 'عملة القسم:' : 'Currency:'}
                     </span>
                     <select
                       value={salesCurrency}
@@ -701,11 +752,21 @@ export const App: React.FC = () => {
 
                   {salesWorkbook && (
                     <button
-                      onClick={() => setSalesWorkbook(null)}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            isAr
+                              ? 'هل أنت متأكد من مسح بيانات ملف المبيعات الحالي؟'
+                              : 'Clear the current Sales workbook data?'
+                          )
+                        ) {
+                          setSalesWorkbook(null);
+                        }
+                      }}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black transition-all"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      <span>{isAr ? 'مسح البيانات الحالية' : 'Clear Current Data'}</span>
+                      <span>{isAr ? 'مسح البيانات' : 'Clear Data'}</span>
                     </button>
                   )}
                 </div>
@@ -730,7 +791,7 @@ export const App: React.FC = () => {
                     <SalesMappingAndSwot
                       sheet={activeSalesSheet}
                       mapping={salesMapping}
-                      setMapping={setSalesMapping}
+                      setMapping={handleUpdateSalesMapping}
                     />
                   </section>
                 )}
@@ -816,18 +877,16 @@ export const App: React.FC = () => {
           <div className="space-y-8">
             {/* Independent Inventory Section Currency Selector & Privacy Bar */}
             <section className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-3 bg-amber-50/90 dark:bg-slate-800/90 px-4 py-3 rounded-2xl border border-amber-200 dark:border-slate-700 text-xs">
-                <span className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-emerald-600" />
-                  {isAr
-                    ? 'البيانات الحالية محفوظة داخلياً على جهازك فقط — لا علاقة لنا ببياناتك'
-                    : 'Data saved internally on your device only'}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-800/90 px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs text-xs">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 font-bold text-[11px]">
+                  <Lock className="w-3.5 h-3.5" />
+                  {isAr ? 'حفظ محلي 100% على جهازك' : '100% Local Storage'}
                 </span>
 
                 <div className="flex flex-wrap items-center gap-2.5">
-                  <div className="flex items-center gap-2 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-amber-300 dark:border-slate-600">
-                    <span className="font-extrabold text-amber-700 dark:text-amber-400">
-                      {isAr ? 'عملة قسم المخزون والأصناف:' : 'Inventory Section Currency:'}
+                  <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <span className="font-extrabold text-brand-700 dark:text-brand-300">
+                      {isAr ? 'عملة القسم:' : 'Currency:'}
                     </span>
                     <select
                       value={inventoryCurrency}
@@ -850,11 +909,21 @@ export const App: React.FC = () => {
 
                   {inventoryWorkbook && (
                     <button
-                      onClick={() => setInventoryWorkbook(null)}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            isAr
+                              ? 'هل أنت متأكد من مسح بيانات ملف المخزون الحالي؟'
+                              : 'Clear the current Inventory workbook data?'
+                          )
+                        ) {
+                          setInventoryWorkbook(null);
+                        }
+                      }}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black transition-all"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      <span>{isAr ? 'مسح البيانات الحالية' : 'Clear Current Data'}</span>
+                      <span>{isAr ? 'مسح البيانات' : 'Clear Data'}</span>
                     </button>
                   )}
                 </div>
@@ -912,32 +981,32 @@ export const App: React.FC = () => {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 py-6 mt-12 transition-colors">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-3 text-xs text-slate-500 dark:text-slate-400">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-slate-700 dark:text-slate-200">DataSolu</span>
-              <span className="px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-mono text-[10px] font-black">
-                {APP_VERSION}
-              </span>
-              <span>-</span>
-              <span>{t.app.tagline}</span>
-            </div>
-            <div>
-              <span className="font-bold text-emerald-700 dark:text-emerald-400">
-                {isAr
-                  ? '🔒 ميزة الخصوصية: جميع البيانات تُحفظ داخلياً على جهازك فقط — لا علاقة لنا ببياناتك إطلاقاً'
-                  : '🔒 Privacy Guarantee: All data is saved internally on your device only — we have no relation to your data'}
-              </span>
-            </div>
+      <footer className="border-t border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 py-5 pb-20 md:pb-6 mt-12 transition-colors">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-bold text-slate-700 dark:text-slate-200">DataSolu</span>
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('datasolu:open-changelog'))}
+              className="px-2 py-0.5 rounded-full bg-brand-100 hover:bg-brand-200 dark:bg-brand-950 text-brand-700 dark:text-brand-300 font-mono text-[10px] font-black transition-colors cursor-pointer"
+              title={isAr ? 'عرض سجل التحديثات' : 'View Changelog'}
+            >
+              {APP_VERSION}
+            </button>
+            <span>•</span>
+            <span>{t.app.tagline}</span>
           </div>
-
-          <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/80 text-[11px] text-amber-800 dark:text-amber-300/90 flex items-center gap-2">
-            <ShieldAlert className="w-4 h-4 flex-shrink-0 text-amber-500" />
-            <span>
+          <div className="flex flex-wrap items-center gap-3 text-[11px]">
+            <span className="font-bold text-emerald-700 dark:text-emerald-400">
               {isAr
-                ? 'إخلاء مسؤولية قانوني: جميع تحليلات الأسهم والمؤشرات وترشيحات الموقع وأدوات البيع والشراء المعروضة في المنصة هي لأغراض الاسترشاد التحليلي وتنظيم المحفظة الشخصية فقط، ولا تُعد بأي حال توصية مباشرة بالبيع أو الشراء.'
-                : 'Legal Disclaimer: All stock analyses, indicators, featured picks, and portfolio tools on this platform are strictly for informational guidance and personal organization, and do NOT constitute buy or sell recommendations.'}
+                ? '🔒 حفظ ومعالجة محلية 100% على جهازك'
+                : '🔒 100% Local Device Storage'}
+            </span>
+            <span className="text-slate-300 dark:text-slate-700">|</span>
+            <span className="text-amber-700 dark:text-amber-400 font-semibold">
+              {isAr
+                ? 'تحليلات الأسهم للاسترشاد الشخصي فقط بدون توصيات'
+                : 'Stock analytics for guidance only'}
             </span>
           </div>
         </div>

@@ -50,6 +50,8 @@ import {
   getSectionCurrency,
   setSectionCurrency,
 } from '../utils/currencyManager';
+import { usePagination } from '../hooks/usePagination';
+import { Pagination } from './ui/Pagination';
 import {
   TrendingUp,
   TrendingDown,
@@ -1998,6 +2000,22 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
     }
   };
 
+  // Pagination hooks for all large tables and lists across Stock Market tabs
+  const exchangeExplorerPg = usePagination(exchangeExplorerStocks, 12);
+  const visibleHistoricalDays = useMemo(
+    () => (selectedStock?.historicalDays ? selectedStock.historicalDays.slice(0, historyDaysLimit) : []),
+    [selectedStock, historyDaysLimit]
+  );
+  const historyDaysPg = usePagination(visibleHistoricalDays, 10);
+  const screenerPg = usePagination(filteredStocks, 10);
+  const scanLogsPg = usePagination(scanLogs, 10);
+  const holdingsPg = usePagination(portfolio.holdings, 10);
+  const transactionsPg = usePagination(transactions, 10);
+  const dividendsPg = usePagination(dividends, 10);
+  const purchasedPg = usePagination(purchasedRecommendations, 5);
+  const plansPg = usePagination(tradePlans, 6);
+  const opinionsPg = usePagination(personalOpinions, 6);
+
   return (
     <div className="space-y-6">
       {/* Hidden File Inputs for JSON Backup & Excel Stocks Import */}
@@ -2025,66 +2043,29 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
       )}
 
       {/* =====================================================================
-          1. PRIVACY & 100% INTERNAL STORAGE GUARANTEE + LEGAL DISCLAIMER
+          1. COMPACT PRIVACY & LEGAL DISCLAIMER BAR
          ===================================================================== */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Privacy & Local-Only Storage Banner */}
-        <div className="rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50/90 to-cyan-50/80 dark:from-emerald-950/60 dark:via-slate-900 dark:to-teal-950/50 border-2 border-emerald-500/60 p-4 shadow-sm flex items-start gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 shadow-md mt-0.5">
-            <Lock className="w-5 h-5" />
-          </div>
-          <div className="space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-700 text-white uppercase">
-                {isAr ? 'خصوصية مطلقة 100%' : '100% Local Privacy'}
-              </span>
-              <h2 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white">
-                {isAr
-                  ? 'بياناتك تُحفظ داخلياً على جهازك فقط — لا علاقة لنا ببياناتك إطلاقاً'
-                  : 'Your Data is Saved Internally on Your Device Only — Zero Server Access'}
-              </h2>
-            </div>
-            <p className="text-[11px] sm:text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
-              {isAr
-                ? 'المنصة تبدأ فارغة تماماً بدون أي بيانات محاكاة. كل ما تدخله أو تفحصه من أسهم، أسعار، صفقات بيع وشراء، خطط، وآراء شخصية يتم حفظه في التسجيل الداخلي لمتصفحك وجهازك فقط (Local Storage). لا يتم إرسال أو تخزين أي من بياناتك على خوادمنا ولا علاقة لنا ببياناتك.'
-                : 'The platform starts completely empty with zero mock data. Everything you enter or scan is saved strictly inside your browser’s internal storage. We have no access or relation to your data.'}
-            </p>
-          </div>
+      <div className="rounded-2xl bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 px-4 py-2.5 shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 font-bold text-[11px]">
+            <Lock className="w-3.5 h-3.5" />
+            {isAr ? 'حفظ محلي 100% على جهازك' : '100% Local Device Storage'}
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-300 font-semibold">
+            <ShieldAlert className="w-4 h-4 text-amber-500 flex-shrink-0" />
+            {isAr
+              ? 'إخلاء مسؤولية: جميع البيانات والمؤشرات للاسترشاد الشخصي فقط وليست توصية بيع أو شراء.'
+              : 'Disclaimer: All data and indicators are for personal guidance only, not financial advice.'}
+          </span>
         </div>
 
-        {/* Legal Disclaimer Banner */}
-        <div className="rounded-2xl bg-gradient-to-r from-amber-50 via-orange-50/90 to-rose-50/80 dark:from-amber-950/60 dark:via-slate-900 dark:to-rose-950/50 border-2 border-amber-400/70 dark:border-amber-600/60 p-4 shadow-sm flex items-start justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center flex-shrink-0 shadow-md mt-0.5">
-              <ShieldAlert className="w-5 h-5" />
-            </div>
-            <div className="space-y-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-600 text-white uppercase">
-                  {isAr ? 'إخلاء مسؤولية قانوني' : 'Legal Disclaimer'}
-                </span>
-                <h2 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white">
-                  {isAr
-                    ? 'الموقع للاسترشاد فقط بدون توصيات بيع أو شراء'
-                    : 'For Guidance Only — No Buy/Sell Recommendations'}
-                </h2>
-              </div>
-              <p className="text-[11px] sm:text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
-                {isAr
-                  ? 'جميع الأسعار المجلوبة، المؤشرات الفنية، والإشارات التحليلية المتغيرة هي لأغراض الاسترشاد وتنظيم محفظتك الشخصية فقط، ولا تُعد توصية مباشرة بالبيع أو الشراء.'
-                  : 'All fetched market prices, technical indicators, and dynamic analytical signals are strictly for personal guidance and organization.'}
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={() => setShowFullDisclaimerModal(true)}
-            className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-900 dark:text-amber-300 text-[11px] font-extrabold whitespace-nowrap transition-all flex items-center gap-1"
-          >
-            <Scale className="w-3.5 h-3.5" />
-            <span>{isAr ? 'النص الكامل' : 'Details'}</span>
-          </button>
-        </div>
+        <button
+          onClick={() => setShowFullDisclaimerModal(true)}
+          className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-[11px] font-bold whitespace-nowrap transition-all flex items-center gap-1"
+        >
+          <Scale className="w-3.5 h-3.5 text-amber-500" />
+          <span>{isAr ? 'التفاصيل' : 'Details'}</span>
+        </button>
       </div>
 
       {/* =====================================================================
@@ -2693,8 +2674,8 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-96 overflow-y-auto p-1">
-                  {exchangeExplorerStocks.map((item) => {
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 p-1">
+                  {exchangeExplorerPg.pageItems.map((item) => {
                     const scannedStock = stocks.find(
                       (s) => s.symbol.toUpperCase() === item.symbol.toUpperCase()
                     );
@@ -2772,6 +2753,15 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                     );
                   })}
                 </div>
+                <Pagination
+                  page={exchangeExplorerPg.page}
+                  totalPages={exchangeExplorerPg.totalPages}
+                  pageSize={exchangeExplorerPg.pageSize}
+                  total={exchangeExplorerPg.total}
+                  onPageChange={exchangeExplorerPg.setPage}
+                  onPageSizeChange={exchangeExplorerPg.setPageSize}
+                  pageSizeOptions={[12, 24, 48]}
+                />
               </div>
             )}
           </div>
@@ -3434,11 +3424,11 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                         })()}
 
                         {/* Historical Days Table */}
-                        <div className="max-h-80 overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-700/80">
+                        <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700/80">
                           <table className="w-full text-xs text-start">
-                            <thead className="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-300 font-extrabold sticky top-0 z-10 border-b border-slate-200 dark:border-slate-700">
+                            <thead className="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-300 font-extrabold border-b border-slate-200 dark:border-slate-700">
                               <tr>
-                                <th className="py-2.5 px-3 text-start">
+                                <th className="py-2.5 px-3 text-start sticky start-0 bg-slate-100 dark:bg-slate-900 z-10">
                                   {isAr ? 'تاريخ الجلسة' : 'Date'}
                                 </th>
                                 <th className="py-2.5 px-3 text-center">
@@ -3462,20 +3452,20 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                              {selectedStock.historicalDays
-                                .slice(0, historyDaysLimit)
-                                .map((day, idx) => (
+                              {historyDaysPg.pageItems.map((day, idx) => {
+                                const globalIdx = historyDaysPg.startIndex + idx;
+                                return (
                                   <tr
-                                    key={`${day.date}-${idx}`}
+                                    key={`${day.date}-${globalIdx}`}
                                     className={
-                                      idx === 0
+                                      globalIdx === 0
                                         ? 'bg-indigo-50/60 dark:bg-indigo-950/30 font-bold'
                                         : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'
                                     }
                                   >
-                                    <td className="py-2.5 px-3 font-mono font-bold text-slate-800 dark:text-slate-200">
+                                    <td className="py-2.5 px-3 font-mono font-bold text-slate-800 dark:text-slate-200 sticky start-0 bg-white dark:bg-slate-800 z-10">
                                       {day.date}{' '}
-                                      {idx === 0 && (
+                                      {globalIdx === 0 && (
                                         <span className="ms-1 px-1.5 py-0.5 rounded bg-indigo-600 text-white text-[9px] font-black">
                                           {isAr ? 'أحدث جلسة' : 'Latest'}
                                         </span>
@@ -3510,10 +3500,20 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                                       {day.volume ? day.volume.toLocaleString() : '-'}
                                     </td>
                                   </tr>
-                                ))}
+                                );
+                              })}
                             </tbody>
                           </table>
                         </div>
+                        <Pagination
+                          page={historyDaysPg.page}
+                          totalPages={historyDaysPg.totalPages}
+                          pageSize={historyDaysPg.pageSize}
+                          total={historyDaysPg.total}
+                          onPageChange={historyDaysPg.setPage}
+                          onPageSizeChange={historyDaysPg.setPageSize}
+                          pageSizeOptions={[10, 25, 50]}
+                        />
                       </>
                     ) : (
                       <div className="p-6 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-dashed border-indigo-300 dark:border-indigo-700 text-center space-y-3">
@@ -3582,7 +3582,7 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                   <table className="w-full text-xs text-start">
                     <thead className="bg-slate-50 dark:bg-slate-900/80 text-slate-500 dark:text-slate-400 font-extrabold border-b border-slate-200 dark:border-slate-700">
                       <tr>
-                        <th className="py-3.5 px-4 text-start">{isAr ? 'السهم' : 'Stock'}</th>
+                        <th className="py-3.5 px-4 text-start sticky start-0 bg-slate-50 dark:bg-slate-900 z-10">{isAr ? 'السهم' : 'Stock'}</th>
                         <th className="py-3.5 px-3 text-center">
                           {isAr ? 'السعر الفعلي / تحديث' : 'Live Price'}
                         </th>
@@ -3603,7 +3603,7 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                      {filteredStocks.map((st) => {
+                      {screenerPg.pageItems.map((st) => {
                         const upside =
                           st.currentPrice > 0
                             ? ((st.estimatedFairValue - st.currentPrice) / st.currentPrice) * 100
@@ -3620,7 +3620,7 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                                 : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
                             }`}
                           >
-                            <td className="py-3 px-4">
+                            <td className="py-3 px-4 sticky start-0 bg-white dark:bg-slate-800 z-10">
                               <div className="flex items-center gap-2">
                                 <button
                                   onClick={(e) => {
@@ -3743,6 +3743,17 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                     </tbody>
                   </table>
                 </div>
+                <div className="px-5 pb-4">
+                  <Pagination
+                    page={screenerPg.page}
+                    totalPages={screenerPg.totalPages}
+                    pageSize={screenerPg.pageSize}
+                    total={screenerPg.total}
+                    onPageChange={screenerPg.setPage}
+                    onPageSizeChange={screenerPg.setPageSize}
+                    pageSizeOptions={[10, 25, 50, 100]}
+                  />
+                </div>
               </div>
 
               {/* SECTION D: INTERNAL SCAN & SIGNAL UPDATE LOG (سجل الفحص والتحديث الداخلي للأسعار والتوصيات) */}
@@ -3765,8 +3776,8 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                     </button>
                   </div>
 
-                  <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-                    {scanLogs.map((log) => (
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                    {scanLogsPg.pageItems.map((log) => (
                       <div
                         key={log.id}
                         className="py-2 flex flex-wrap items-center justify-between gap-2"
@@ -3800,6 +3811,15 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                       </div>
                     ))}
                   </div>
+                  <Pagination
+                    page={scanLogsPg.page}
+                    totalPages={scanLogsPg.totalPages}
+                    pageSize={scanLogsPg.pageSize}
+                    total={scanLogsPg.total}
+                    onPageChange={scanLogsPg.setPage}
+                    onPageSizeChange={scanLogsPg.setPageSize}
+                    pageSizeOptions={[10, 25, 50]}
+                  />
                 </div>
               )}
             </>
@@ -4005,7 +4025,7 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
               <table className="w-full text-xs text-start">
                 <thead className="bg-slate-50 dark:bg-slate-900/80 text-slate-500 dark:text-slate-400 font-extrabold border-b border-slate-200 dark:border-slate-700">
                   <tr>
-                    <th className="py-3.5 px-4 text-start">{isAr ? 'السهم' : 'Stock'}</th>
+                    <th className="py-3.5 px-4 text-start sticky start-0 bg-slate-50 dark:bg-slate-900 z-10">{isAr ? 'السهم' : 'Stock'}</th>
                     <th className="py-3.5 px-3 text-center">{isAr ? 'الكمية' : 'Qty'}</th>
                     <th className="py-3.5 px-3 text-center">
                       {isAr ? 'متوسط سعر الشراء' : 'Avg Buy Cost'}
@@ -4036,14 +4056,14 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                       </td>
                     </tr>
                   ) : (
-                    portfolio.holdings.map((h) => {
+                    holdingsPg.pageItems.map((h) => {
                       const stObj = stocks.find((s) => s.id === h.stockId) || stocks[0];
                       return (
                         <tr
                           key={h.stockId}
                           className="hover:bg-slate-50 dark:hover:bg-slate-800/50"
                         >
-                          <td className="py-3.5 px-4 font-black text-slate-900 dark:text-white">
+                          <td className="py-3.5 px-4 font-black text-slate-900 dark:text-white sticky start-0 bg-white dark:bg-slate-800 z-10">
                             {isAr ? h.nameAr : h.nameEn}{' '}
                             <span className="text-[10px] text-slate-400 font-mono">
                               ({h.symbol})
@@ -4126,6 +4146,17 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                 </tbody>
               </table>
             </div>
+            <div className="px-5 pb-4">
+              <Pagination
+                page={holdingsPg.page}
+                totalPages={holdingsPg.totalPages}
+                pageSize={holdingsPg.pageSize}
+                total={holdingsPg.total}
+                onPageChange={holdingsPg.setPage}
+                onPageSizeChange={holdingsPg.setPageSize}
+                pageSizeOptions={[10, 25, 50]}
+              />
+            </div>
           </div>
 
           {transactions.length > 0 && (
@@ -4150,7 +4181,7 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {transactions.map((tx) => (
+                    {transactionsPg.pageItems.map((tx) => (
                       <tr key={tx.id}>
                         <td className="py-3 px-4 font-mono text-slate-500">{tx.date}</td>
                         <td className="py-3 px-3 text-center">
@@ -4184,6 +4215,17 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                     ))}
                   </tbody>
                 </table>
+              </div>
+              <div className="px-5 pb-4">
+                <Pagination
+                  page={transactionsPg.page}
+                  totalPages={transactionsPg.totalPages}
+                  pageSize={transactionsPg.pageSize}
+                  total={transactionsPg.total}
+                  onPageChange={transactionsPg.setPage}
+                  onPageSizeChange={transactionsPg.setPageSize}
+                  pageSizeOptions={[10, 25, 50, 100]}
+                />
               </div>
             </div>
           )}
@@ -4339,7 +4381,7 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {dividends.map((dv) => (
+                    {dividendsPg.pageItems.map((dv) => (
                       <tr key={dv.id}>
                         <td className="py-2.5 px-3 font-mono text-slate-500">{dv.date}</td>
                         <td className="py-2.5 px-3 font-black">
@@ -4367,6 +4409,15 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                     ))}
                   </tbody>
                 </table>
+                <Pagination
+                  page={dividendsPg.page}
+                  totalPages={dividendsPg.totalPages}
+                  pageSize={dividendsPg.pageSize}
+                  total={dividendsPg.total}
+                  onPageChange={dividendsPg.setPage}
+                  onPageSizeChange={dividendsPg.setPageSize}
+                  pageSizeOptions={[10, 25, 50]}
+                />
               </div>
             )}
           </div>
@@ -4469,7 +4520,7 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-6">
-              {purchasedRecommendations.map((rec) => {
+              {purchasedPg.pageItems.map((rec) => {
                 const stObj = stocks.find((s) => s.id === rec.stockId);
                 const badgePalette =
                   rec.decisionType === 'accumulate_support'
@@ -4893,6 +4944,15 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                   </div>
                 );
               })}
+              <Pagination
+                page={purchasedPg.page}
+                totalPages={purchasedPg.totalPages}
+                pageSize={purchasedPg.pageSize}
+                total={purchasedPg.total}
+                onPageChange={purchasedPg.setPage}
+                onPageSizeChange={purchasedPg.setPageSize}
+                pageSizeOptions={[5, 10, 25]}
+              />
             </div>
           )}
         </div>
@@ -5154,54 +5214,65 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
           </form>
 
           {tradePlans.length > 0 && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {tradePlans.map((plan) => (
-                <div
-                  key={plan.id}
-                  className="rounded-3xl bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 p-6 shadow-md space-y-4"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <span className="font-mono text-xs font-black text-indigo-600">
-                        {plan.symbol}
-                      </span>
-                      <h3 className="text-base font-black text-slate-900 dark:text-white">
-                        {plan.title}
-                      </h3>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {plansPg.pageItems.map((plan) => (
+                  <div
+                    key={plan.id}
+                    className="rounded-3xl bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 p-6 shadow-md space-y-4"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <span className="font-mono text-xs font-black text-indigo-600">
+                          {plan.symbol}
+                        </span>
+                        <h3 className="text-base font-black text-slate-900 dark:text-white">
+                          {plan.title}
+                        </h3>
+                      </div>
+                      <button
+                        onClick={() =>
+                          setTradePlans((prev) => prev.filter((p) => p.id !== plan.id))
+                        }
+                        className="p-1 text-slate-400 hover:text-rose-600"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
-                    <button
-                      onClick={() =>
-                        setTradePlans((prev) => prev.filter((p) => p.id !== plan.id))
-                      }
-                      className="p-1 text-slate-400 hover:text-rose-600"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="grid grid-cols-4 gap-2 bg-slate-50 dark:bg-slate-900 p-3 rounded-xl text-center text-xs font-black">
+                      <div>
+                        {isAr ? 'الدخول:' : 'Entry:'} {plan.entryPrice}
+                      </div>
+                      <div className="text-rose-600">
+                        {isAr ? 'الوقف:' : 'Stop:'} {plan.stopLossPrice}
+                      </div>
+                      <div className="text-emerald-600">
+                        {isAr ? 'هدف:' : 'T2:'} {plan.target2Price}
+                      </div>
+                      <div>1 : {plan.riskRewardRatio}</div>
+                    </div>
+                    <div className="text-xs space-y-1 text-slate-600 dark:text-slate-300">
+                      <p>
+                        <strong>{isAr ? 'إيجابي: ' : 'Bull: '}</strong>
+                        {plan.bullScenario}
+                      </p>
+                      <p>
+                        <strong>{isAr ? 'سلبي: ' : 'Bear: '}</strong>
+                        {plan.bearScenario}
+                      </p>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-4 gap-2 bg-slate-50 dark:bg-slate-900 p-3 rounded-xl text-center text-xs font-black">
-                    <div>
-                      {isAr ? 'الدخول:' : 'Entry:'} {plan.entryPrice}
-                    </div>
-                    <div className="text-rose-600">
-                      {isAr ? 'الوقف:' : 'Stop:'} {plan.stopLossPrice}
-                    </div>
-                    <div className="text-emerald-600">
-                      {isAr ? 'هدف:' : 'T2:'} {plan.target2Price}
-                    </div>
-                    <div>1 : {plan.riskRewardRatio}</div>
-                  </div>
-                  <div className="text-xs space-y-1 text-slate-600 dark:text-slate-300">
-                    <p>
-                      <strong>{isAr ? 'إيجابي: ' : 'Bull: '}</strong>
-                      {plan.bullScenario}
-                    </p>
-                    <p>
-                      <strong>{isAr ? 'سلبي: ' : 'Bear: '}</strong>
-                      {plan.bearScenario}
-                    </p>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
+              <Pagination
+                page={plansPg.page}
+                totalPages={plansPg.totalPages}
+                pageSize={plansPg.pageSize}
+                total={plansPg.total}
+                onPageChange={plansPg.setPage}
+                onPageSizeChange={plansPg.setPageSize}
+                pageSizeOptions={[6, 12, 24]}
+              />
             </div>
           )}
         </div>
@@ -5359,36 +5430,47 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
           </div>
 
           {personalOpinions.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {personalOpinions.map((op) => {
-                const badge = getStanceBadge(op.stance);
-                return (
-                  <div
-                    key={op.id}
-                    className="rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-5 shadow-sm space-y-3"
-                  >
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-black text-slate-900 dark:text-white">
-                        {op.stockNameAr} ({op.symbol})
-                      </h4>
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-black ${badge.classes}`}>
-                        {badge.label}
-                      </span>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {opinionsPg.pageItems.map((op) => {
+                  const badge = getStanceBadge(op.stance);
+                  return (
+                    <div
+                      key={op.id}
+                      className="rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-5 shadow-sm space-y-3"
+                    >
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-black text-slate-900 dark:text-white">
+                          {op.stockNameAr} ({op.symbol})
+                        </h4>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-black ${badge.classes}`}>
+                          {badge.label}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-300">{op.thesisNotes}</p>
+                      <div className="flex justify-end">
+                        <button
+                          onClick={() =>
+                            setPersonalOpinions((prev) => prev.filter((item) => item.id !== op.id))
+                          }
+                          className="text-xs text-rose-500 font-bold"
+                        >
+                          {isAr ? 'حذف' : 'Delete'}
+                        </button>
+                      </div>
                     </div>
-                    <p className="text-xs text-slate-600 dark:text-slate-300">{op.thesisNotes}</p>
-                    <div className="flex justify-end">
-                      <button
-                        onClick={() =>
-                          setPersonalOpinions((prev) => prev.filter((item) => item.id !== op.id))
-                        }
-                        className="text-xs text-rose-500 font-bold"
-                      >
-                        {isAr ? 'حذف' : 'Delete'}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
+              <Pagination
+                page={opinionsPg.page}
+                totalPages={opinionsPg.totalPages}
+                pageSize={opinionsPg.pageSize}
+                total={opinionsPg.total}
+                onPageChange={opinionsPg.setPage}
+                onPageSizeChange={opinionsPg.setPageSize}
+                pageSizeOptions={[6, 12, 24]}
+              />
             </div>
           )}
         </div>

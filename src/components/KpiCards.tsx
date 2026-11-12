@@ -92,14 +92,14 @@ export const KpiCards: React.FC<KpiCardsProps> = ({ metrics }) => {
   };
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
       {metrics.map((kpi) => {
         const colors = getColorClasses(kpi.color);
 
         return (
           <div
             key={kpi.id}
-            className={`relative overflow-hidden rounded-2xl p-5 border transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 bg-white dark:bg-slate-800/90 ${colors.border}`}
+            className="relative overflow-hidden rounded-2xl p-4 sm:p-5 border border-slate-200 dark:border-slate-700 transition-all duration-200 hover:shadow-md bg-white dark:bg-slate-800/90"
           >
             {/* Top row: title & icon */}
             <div className="flex items-center justify-between gap-3 mb-3">

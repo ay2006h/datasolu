@@ -1,14 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Target,
-  TrendingUp,
-  TrendingDown,
   Upload,
   Calendar,
   ArrowUpRight,
   ArrowDownRight,
   CheckCircle2,
-  Layers,
   Trash2,
 } from 'lucide-react';
 import { SheetData, SalesColumnMapping, WorkbookData } from '../types';
@@ -21,6 +18,8 @@ import {
   autoDetectSalesMapping,
 } from '../utils/analyticsEngine';
 import { parseExcelFile } from '../utils/excelParser';
+import { usePagination } from '../hooks/usePagination';
+import { Pagination } from './ui/Pagination';
 
 interface SalesTargetAndComparisonPanelProps {
   sheet: SheetData;
@@ -110,9 +109,6 @@ export const SalesTargetAndComparisonPanel: React.FC<SalesTargetAndComparisonPan
   const { language } = useI18n();
   const isAr = language === 'ar';
 
-  // =========================================================================
-  // ENHANCEMENT 6: MONTHLY REVENUE & PROFIT TARGET GAUGE STATE
-  // =========================================================================
   const [targets, setTargets] = useState<{
     revenueTarget: number;
     profitTarget: number;
@@ -142,13 +138,11 @@ export const SalesTargetAndComparisonPanel: React.FC<SalesTargetAndComparisonPan
     }
   }, [targets]);
 
-  // Current sheet aggregate
   const currentStats = useMemo(
     () => computeRowsAggregate(sheet.rows, mapping),
     [sheet.rows, mapping]
   );
 
-  // Auto-initialize sensible default targets if 0 when data is loaded
   const effectiveRevTarget =
     targets.revenueTarget > 0
       ? targets.revenueTarget
@@ -176,9 +170,6 @@ export const SalesTargetAndComparisonPanel: React.FC<SalesTargetAndComparisonPan
       ? remainingProfitToTarget / targets.remainingDays
       : remainingProfitToTarget;
 
-  // =========================================================================
-  // ENHANCEMENT 7: PERIOD-OVER-PERIOD COMPARISON (UPLOAD PREVIOUS FILE OR AUTO-SPLIT)
-  // =========================================================================
   const [comparisonWorkbook, setComparisonWorkbook] = useState<WorkbookData | null>(null);
   const [comparisonError, setComparisonError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -216,26 +207,25 @@ export const SalesTargetAndComparisonPanel: React.FC<SalesTargetAndComparisonPan
         return {
           mode: 'external_file' as const,
           prevLabelAr: `الملف السابق (${comparisonWorkbook.fileName})`,
-          prevLabelEn: `Previous File (${comparisonWorkbook.fileName})`,
+          prevLabelEn: `Previous (${comparisonWorkbook.fileName})`,
           currLabelAr: 'الملف الحالي',
-          currLabelEn: 'Current File',
+          currLabelEn: 'Current',
           prevStats,
           currStats: currentStats,
         };
       }
     }
 
-    // Fallback: Auto-split current sheet into First Half (Period 1) vs Second Half (Period 2)
     const mid = Math.max(1, Math.floor(sheet.rows.length / 2));
     const firstHalfRows = sheet.rows.slice(0, mid);
     const secondHalfRows = sheet.rows.slice(mid);
 
     return {
       mode: 'auto_split' as const,
-      prevLabelAr: 'النصف الأول من الفترة الحالية',
-      prevLabelEn: 'First Half of Current Data',
-      currLabelAr: 'النصف الثاني (الأحدث) من الفترة',
-      currLabelEn: 'Second Half (Recent) of Data',
+      prevLabelAr: 'النصف الأول من الفترة',
+      prevLabelEn: 'First Half',
+      currLabelAr: 'النصف الثاني (الأحدث)',
+      currLabelEn: 'Second Half',
       prevStats: computeRowsAggregate(firstHalfRows, mapping),
       currStats: computeRowsAggregate(secondHalfRows, mapping),
     };
@@ -260,70 +250,53 @@ export const SalesTargetAndComparisonPanel: React.FC<SalesTargetAndComparisonPan
         100
       : 0;
 
-  // Compare categories / products between the two periods
-  const categoryShifts = useMemo(() => {
+  const allShifts = useMemo(() => {
     const allCats = new Set([
       ...Object.keys(comparisonData.prevStats.byCategory),
       ...Object.keys(comparisonData.currStats.byCategory),
     ]);
-    return Array.from(allCats)
-      .map((cat) => {
-        const prevRev = comparisonData.prevStats.byCategory[cat]?.revenue || 0;
-        const currRev = comparisonData.currStats.byCategory[cat]?.revenue || 0;
-        const diff = currRev - prevRev;
-        const pct = prevRev > 0 ? (diff / prevRev) * 100 : currRev > 0 ? 100 : 0;
-        return { name: cat, prevRev, currRev, diff, pct };
-      })
-      .sort((a, b) => b.diff - a.diff);
-  }, [comparisonData]);
+    const catList = Array.from(allCats).map((cat) => {
+      const prevRev = comparisonData.prevStats.byCategory[cat]?.revenue || 0;
+      const currRev = comparisonData.currStats.byCategory[cat]?.revenue || 0;
+      const diff = currRev - prevRev;
+      const pct = prevRev > 0 ? (diff / prevRev) * 100 : currRev > 0 ? 100 : 0;
+      return { name: cat, prevRev, currRev, diff, pct };
+    });
 
-  // Compare branches / regions between the two periods
-  const regionShifts = useMemo(() => {
     const allRegs = new Set([
       ...Object.keys(comparisonData.prevStats.byRegion),
       ...Object.keys(comparisonData.currStats.byRegion),
     ]);
-    return Array.from(allRegs)
-      .map((reg) => {
-        const prevRev = comparisonData.prevStats.byRegion[reg]?.revenue || 0;
-        const currRev = comparisonData.currStats.byRegion[reg]?.revenue || 0;
-        const diff = currRev - prevRev;
-        const pct = prevRev > 0 ? (diff / prevRev) * 100 : currRev > 0 ? 100 : 0;
-        return { name: reg, prevRev, currRev, diff, pct };
-      })
-      .sort((a, b) => b.diff - a.diff);
+    const regList = Array.from(allRegs).map((reg) => {
+      const prevRev = comparisonData.prevStats.byRegion[reg]?.revenue || 0;
+      const currRev = comparisonData.currStats.byRegion[reg]?.revenue || 0;
+      const diff = currRev - prevRev;
+      const pct = prevRev > 0 ? (diff / prevRev) * 100 : currRev > 0 ? 100 : 0;
+      return { name: reg, prevRev, currRev, diff, pct };
+    });
+
+    return [...catList, ...regList].sort((a, b) => b.diff - a.diff);
   }, [comparisonData]);
+
+  const shiftsPg = usePagination(allShifts, 5);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* =====================================================================
-          ENHANCEMENT 6: MONTHLY SALES & PROFIT TARGET GAUGE
-         ===================================================================== */}
-      <div className="rounded-3xl bg-white dark:bg-slate-800/95 border-2 border-emerald-500/30 p-6 shadow-md space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-700/70 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md">
-              <Target className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
-                {isAr
-                  ? 'تحديد هدف المبيعات والأرباح الشهري ومؤشر الإنجاز اليومي'
-                  : 'Monthly Sales & Profit Target vs. Actual Gauge'}
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {isAr
-                  ? 'حدد المستهدف الشهري وأيام العمل المتبقية لمتابعة نسبة الإنجاز والمعدل اليومي المطلوب.'
-                  : 'Set monthly revenue & profit targets to track achievement % and required daily run-rate.'}
-              </p>
-            </div>
+      {/* Monthly Sales & Profit Target Gauge */}
+      <div className="rounded-2xl bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 p-5 sm:p-6 shadow-sm space-y-4">
+        <div className="flex items-center gap-3 border-b border-slate-100 dark:border-slate-700/70 pb-3">
+          <div className="w-9 h-9 rounded-xl bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 flex items-center justify-center">
+            <Target className="w-5 h-5" />
           </div>
+          <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+            {isAr ? 'مستهدفات المبيعات والأرباح الشهرية' : 'Monthly Sales & Profit Targets'}
+          </h3>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
             <label className="text-[11px] font-bold text-slate-500 block">
-              {isAr ? 'هدف المبيعات الشهري:' : 'Monthly Revenue Target:'}
+              {isAr ? 'هدف المبيعات:' : 'Revenue Target:'}
             </label>
             <input
               type="number"
@@ -336,13 +309,13 @@ export const SalesTargetAndComparisonPanel: React.FC<SalesTargetAndComparisonPan
                   revenueTarget: Math.max(0, Number(e.target.value)),
                 }))
               }
-              className="w-full mt-1 px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-emerald-300 dark:border-emerald-700 text-xs font-black text-emerald-700 dark:text-emerald-300"
+              className="w-full mt-1 px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-black text-slate-900 dark:text-white"
             />
           </div>
 
-          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
             <label className="text-[11px] font-bold text-slate-500 block">
-              {isAr ? 'هدف صافي الربح الشهري:' : 'Monthly Profit Target:'}
+              {isAr ? 'هدف صافي الربح:' : 'Profit Target:'}
             </label>
             <input
               type="number"
@@ -355,13 +328,13 @@ export const SalesTargetAndComparisonPanel: React.FC<SalesTargetAndComparisonPan
                   profitTarget: Math.max(0, Number(e.target.value)),
                 }))
               }
-              className="w-full mt-1 px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-indigo-300 dark:border-indigo-700 text-xs font-black text-indigo-700 dark:text-indigo-300"
+              className="w-full mt-1 px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-black text-slate-900 dark:text-white"
             />
           </div>
 
-          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
             <label className="text-[11px] font-bold text-slate-500 block">
-              {isAr ? 'أيام العمل المتبقية بالشهر:' : 'Remaining Working Days:'}
+              {isAr ? 'الأيام المتبقية:' : 'Remaining Days:'}
             </label>
             <input
               type="number"
@@ -374,121 +347,88 @@ export const SalesTargetAndComparisonPanel: React.FC<SalesTargetAndComparisonPan
                   remainingDays: Math.max(1, Number(e.target.value)),
                 }))
               }
-              className="w-full mt-1 px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-black text-slate-900 dark:text-white"
+              className="w-full mt-1 px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-black text-slate-900 dark:text-white"
             />
           </div>
         </div>
 
         {/* Revenue Target Gauge */}
-        <div className="p-4 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/60 space-y-2.5">
+        <div className="p-3.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/60 space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-            <span className="font-black text-slate-800 dark:text-slate-200">
-              {isAr
-                ? `إنجاز هدف المبيعات: ${formatCurrency(currentStats.totalRevenue, isAr)} من ${formatCurrency(
-                    effectiveRevTarget,
-                    isAr
-                  )}`
-                : `Revenue Achievement: ${formatCurrency(currentStats.totalRevenue, isAr)} / ${formatCurrency(
-                    effectiveRevTarget,
-                    isAr
-                  )}`}
+            <span className="font-bold text-slate-800 dark:text-slate-200">
+              {isAr ? 'إنجاز المبيعات:' : 'Revenue:'}{' '}
+              {formatCurrency(currentStats.totalRevenue, isAr)} / {formatCurrency(effectiveRevTarget, isAr)}
             </span>
-            <span className="px-2.5 py-0.5 rounded-full bg-emerald-600 text-white font-black">
+            <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white font-black">
               {revProgressPct.toFixed(1)}%
             </span>
           </div>
-          <div className="w-full h-3 rounded-full bg-emerald-200/70 dark:bg-slate-700 overflow-hidden">
+          <div className="w-full h-2.5 rounded-full bg-emerald-200/70 dark:bg-slate-700 overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-500"
+              className="h-full bg-emerald-600 rounded-full transition-all duration-500"
               style={{ width: `${Math.min(100, revProgressPct)}%` }}
             />
           </div>
           <div className="flex flex-wrap items-center justify-between text-[11px] font-bold text-slate-600 dark:text-slate-300">
             <span>
               {remainingRevToTarget > 0
-                ? isAr
-                  ? `المتبقي للهدف: ${formatCurrency(remainingRevToTarget, isAr)}`
-                  : `Remaining: ${formatCurrency(remainingRevToTarget, isAr)}`
+                ? `${isAr ? 'المتبقي:' : 'Remaining:'} ${formatCurrency(remainingRevToTarget, isAr)}`
                 : isAr
-                ? '🎉 تم تحقيق وتجاوز هدف المبيعات الشهري!'
-                : '🎉 Monthly revenue target achieved!'}
+                ? 'تم تحقيق الهدف'
+                : 'Target achieved'}
             </span>
             {remainingRevToTarget > 0 && (
               <span className="text-emerald-700 dark:text-emerald-300 font-black">
-                {isAr
-                  ? `المعدل اليومي المطلوب: ${formatCurrency(requiredDailyRev, isAr)} / يوم`
-                  : `Required Daily: ${formatCurrency(requiredDailyRev, isAr)}/day`}
+                {formatCurrency(requiredDailyRev, isAr)} / {isAr ? 'يوم' : 'day'}
               </span>
             )}
           </div>
         </div>
 
         {/* Profit Target Gauge */}
-        <div className="p-4 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200/80 dark:border-indigo-800/60 space-y-2.5">
+        <div className="p-3.5 rounded-xl bg-brand-50/60 dark:bg-brand-950/30 border border-brand-200/80 dark:border-brand-800/60 space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-            <span className="font-black text-slate-800 dark:text-slate-200">
-              {isAr
-                ? `إنجاز هدف صافي الربح: ${formatCurrency(currentStats.totalProfit, isAr)} من ${formatCurrency(
-                    effectiveProfitTarget,
-                    isAr
-                  )}`
-                : `Profit Achievement: ${formatCurrency(currentStats.totalProfit, isAr)} / ${formatCurrency(
-                    effectiveProfitTarget,
-                    isAr
-                  )}`}
+            <span className="font-bold text-slate-800 dark:text-slate-200">
+              {isAr ? 'إنجاز الربح:' : 'Profit:'}{' '}
+              {formatCurrency(currentStats.totalProfit, isAr)} / {formatCurrency(effectiveProfitTarget, isAr)}
             </span>
-            <span className="px-2.5 py-0.5 rounded-full bg-indigo-600 text-white font-black">
+            <span className="px-2 py-0.5 rounded-full bg-brand-600 text-white font-black">
               {profitProgressPct.toFixed(1)}%
             </span>
           </div>
-          <div className="w-full h-3 rounded-full bg-indigo-200/70 dark:bg-slate-700 overflow-hidden">
+          <div className="w-full h-2.5 rounded-full bg-brand-200/70 dark:bg-slate-700 overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 rounded-full transition-all duration-500"
+              className="h-full bg-brand-600 rounded-full transition-all duration-500"
               style={{ width: `${Math.min(100, profitProgressPct)}%` }}
             />
           </div>
           <div className="flex flex-wrap items-center justify-between text-[11px] font-bold text-slate-600 dark:text-slate-300">
             <span>
               {remainingProfitToTarget > 0
-                ? isAr
-                  ? `المتبقي لهدف الربح: ${formatCurrency(remainingProfitToTarget, isAr)}`
-                  : `Remaining Profit: ${formatCurrency(remainingProfitToTarget, isAr)}`
+                ? `${isAr ? 'المتبقي:' : 'Remaining:'} ${formatCurrency(remainingProfitToTarget, isAr)}`
                 : isAr
-                ? '🎉 تم تحقيق وتجاوز هدف الربح الشهري!'
-                : '🎉 Monthly profit target achieved!'}
+                ? 'تم تحقيق الهدف'
+                : 'Target achieved'}
             </span>
             {remainingProfitToTarget > 0 && (
-              <span className="text-indigo-700 dark:text-indigo-300 font-black">
-                {isAr
-                  ? `الربح اليومي المطلوب: ${formatCurrency(requiredDailyProfit, isAr)} / يوم`
-                  : `Required Daily Profit: ${formatCurrency(requiredDailyProfit, isAr)}/day`}
+              <span className="text-brand-700 dark:text-brand-300 font-black">
+                {formatCurrency(requiredDailyProfit, isAr)} / {isAr ? 'يوم' : 'day'}
               </span>
             )}
           </div>
         </div>
       </div>
 
-      {/* =====================================================================
-          ENHANCEMENT 7: PERIOD-OVER-PERIOD COMPARISON (PREVIOUS FILE OR SPLIT)
-         ===================================================================== */}
-      <div className="rounded-3xl bg-white dark:bg-slate-800/95 border-2 border-indigo-500/30 p-6 shadow-md space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-700/70 pb-4">
+      {/* Period-over-Period Comparison */}
+      <div className="rounded-2xl bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 p-5 sm:p-6 shadow-sm space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-700/70 pb-3">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md">
-              <Calendar className="w-6 h-6" />
+            <div className="w-9 h-9 rounded-xl bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 flex items-center justify-center">
+              <Calendar className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
-                {isAr
-                  ? 'مقارنة فترتين (الشهر الحالي مقابل الشهر السابق للأصناف والفروع)'
-                  : 'Period-over-Period Comparison (Current vs Previous)'}
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {isAr
-                  ? 'ارفع ملف الشهر السابق للمقارنة المباشرة، أو اعتمد المقارنة التلقائية بين شطري الفترة الحالية.'
-                  : 'Upload previous month Excel file to compare, or use auto-comparison between halves of current sheet.'}
-              </p>
-            </div>
+            <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+              {isAr ? 'مقارنة الفترتين (الحالية مقابل السابقة)' : 'Period Comparison'}
+            </h3>
           </div>
 
           <div className="flex items-center gap-2">
@@ -502,18 +442,16 @@ export const SalesTargetAndComparisonPanel: React.FC<SalesTargetAndComparisonPan
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black flex items-center gap-1.5 shadow-sm"
+              className="px-3 py-1.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm"
             >
               <Upload className="w-3.5 h-3.5" />
-              <span>
-                {isAr ? 'رفع ملف الشهر السابق للمقارنة' : 'Upload Previous Month File'}
-              </span>
+              <span>{isAr ? 'ملف الفترة السابقة' : 'Previous File'}</span>
             </button>
             {comparisonWorkbook && (
               <button
                 type="button"
                 onClick={() => setComparisonWorkbook(null)}
-                className="p-2 rounded-xl bg-rose-100 dark:bg-rose-950 text-rose-600 hover:bg-rose-200"
+                className="p-1.5 rounded-xl bg-rose-100 dark:bg-rose-950 text-rose-600 hover:bg-rose-200"
                 title={isAr ? 'إلغاء ملف المقارنة' : 'Clear comparison file'}
               >
                 <Trash2 className="w-4 h-4" />
@@ -528,135 +466,121 @@ export const SalesTargetAndComparisonPanel: React.FC<SalesTargetAndComparisonPan
           </div>
         )}
 
-        <div className="text-[11px] font-extrabold text-indigo-600 dark:text-indigo-300 bg-indigo-50/70 dark:bg-indigo-950/50 px-3.5 py-2 rounded-xl border border-indigo-200/70 dark:border-indigo-800/60 flex items-center justify-between">
+        <div className="text-[11px] font-bold text-brand-600 dark:text-brand-300 bg-brand-50/70 dark:bg-brand-950/50 px-3 py-1.5 rounded-lg border border-brand-200/70 dark:border-brand-800/60 flex items-center justify-between">
           <span>
             {isAr
-              ? `وضع المقارنة النشط: ${comparisonData.currLabelAr} مقابل ${comparisonData.prevLabelAr}`
-              : `Comparing: ${comparisonData.currLabelEn} vs ${comparisonData.prevLabelEn}`}
+              ? `${comparisonData.currLabelAr} مقابل ${comparisonData.prevLabelAr}`
+              : `${comparisonData.currLabelEn} vs ${comparisonData.prevLabelEn}`}
           </span>
-          <CheckCircle2 className="w-4 h-4" />
+          <CheckCircle2 className="w-3.5 h-3.5" />
         </div>
 
-        {/* 3 Comparison Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
             <span className="text-[10px] font-bold text-slate-400 block">
-              {isAr ? 'نمو إجمالي المبيعات' : 'Revenue Change'}
+              {isAr ? 'نمو المبيعات' : 'Revenue Change'}
             </span>
             <div
-              className={`text-base font-black mt-1 flex items-center gap-1 ${
+              className={`text-sm sm:text-base font-black mt-0.5 flex items-center gap-1 ${
                 revGrowthPct >= 0 ? 'text-emerald-600' : 'text-rose-600'
               }`}
             >
-              {revGrowthPct >= 0 ? (
-                <ArrowUpRight className="w-4 h-4" />
-              ) : (
-                <ArrowDownRight className="w-4 h-4" />
-              )}
+              {revGrowthPct >= 0 ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
               <span>
                 {revGrowthPct >= 0 ? '+' : ''}
                 {revGrowthPct.toFixed(1)}%
               </span>
             </div>
-            <span className="text-[10px] text-slate-500 block mt-0.5">
-              {formatCurrency(comparisonData.currStats.totalRevenue, isAr)} vs{' '}
-              {formatCurrency(comparisonData.prevStats.totalRevenue, isAr)}
-            </span>
           </div>
 
-          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
             <span className="text-[10px] font-bold text-slate-400 block">
-              {isAr ? 'نمو صافي الأرباح' : 'Net Profit Change'}
+              {isAr ? 'نمو الأرباح' : 'Profit Change'}
             </span>
             <div
-              className={`text-base font-black mt-1 flex items-center gap-1 ${
+              className={`text-sm sm:text-base font-black mt-0.5 flex items-center gap-1 ${
                 profitGrowthPct >= 0 ? 'text-emerald-600' : 'text-rose-600'
               }`}
             >
-              {profitGrowthPct >= 0 ? (
-                <ArrowUpRight className="w-4 h-4" />
-              ) : (
-                <ArrowDownRight className="w-4 h-4" />
-              )}
+              {profitGrowthPct >= 0 ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
               <span>
                 {profitGrowthPct >= 0 ? '+' : ''}
                 {profitGrowthPct.toFixed(1)}%
               </span>
             </div>
-            <span className="text-[10px] text-slate-500 block mt-0.5">
-              {formatCurrency(comparisonData.currStats.totalProfit, isAr)} vs{' '}
-              {formatCurrency(comparisonData.prevStats.totalProfit, isAr)}
-            </span>
           </div>
 
-          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
             <span className="text-[10px] font-bold text-slate-400 block">
-              {isAr ? 'نمو الكميات المباعة' : 'Sold Volume Change'}
+              {isAr ? 'نمو الكميات' : 'Volume Change'}
             </span>
             <div
-              className={`text-base font-black mt-1 flex items-center gap-1 ${
+              className={`text-sm sm:text-base font-black mt-0.5 flex items-center gap-1 ${
                 qtyGrowthPct >= 0 ? 'text-emerald-600' : 'text-rose-600'
               }`}
             >
-              {qtyGrowthPct >= 0 ? (
-                <ArrowUpRight className="w-4 h-4" />
-              ) : (
-                <ArrowDownRight className="w-4 h-4" />
-              )}
+              {qtyGrowthPct >= 0 ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
               <span>
                 {qtyGrowthPct >= 0 ? '+' : ''}
                 {qtyGrowthPct.toFixed(1)}%
               </span>
             </div>
-            <span className="text-[10px] text-slate-500 block mt-0.5">
-              {comparisonData.currStats.totalQty.toLocaleString()} vs{' '}
-              {comparisonData.prevStats.totalQty.toLocaleString()}
-            </span>
           </div>
         </div>
 
-        {/* Category & Branch Shift Table */}
-        {(categoryShifts.length > 0 || regionShifts.length > 0) && (
-          <div className="overflow-x-auto max-h-52 rounded-2xl border border-slate-200 dark:border-slate-700">
-            <table className="w-full text-xs text-start">
-              <thead className="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-300 font-extrabold sticky top-0">
-                <tr>
-                  <th className="py-2 px-3 text-start">
-                    {isAr ? 'الفئة / الصنف / الفرع' : 'Category / Branch'}
-                  </th>
-                  <th className="py-2 px-2 text-center">{isAr ? 'الفترة السابقة' : 'Previous'}</th>
-                  <th className="py-2 px-2 text-center">{isAr ? 'الفترة الحالية' : 'Current'}</th>
-                  <th className="py-2 px-2 text-center">{isAr ? 'التغير %' : 'Change %'}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {[...categoryShifts.slice(0, 5), ...regionShifts.slice(0, 5)].map((item, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                    <td className="py-2 px-3 font-black text-slate-900 dark:text-white">
-                      {item.name}
-                    </td>
-                    <td className="py-2 px-2 text-center font-mono">
-                      {formatCurrency(item.prevRev, isAr)}
-                    </td>
-                    <td className="py-2 px-2 text-center font-mono font-bold">
-                      {formatCurrency(item.currRev, isAr)}
-                    </td>
-                    <td className="py-2 px-2 text-center">
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                          item.pct >= 0
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-rose-100 text-rose-800'
-                        }`}
-                      >
-                        {item.pct >= 0 ? '+' : ''}
-                        {item.pct.toFixed(1)}%
-                      </span>
-                    </td>
+        {/* Paginated Category & Branch Shift Table */}
+        {allShifts.length > 0 && (
+          <div className="space-y-2">
+            <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+              <table className="w-full text-xs text-start">
+                <thead className="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-300 font-bold">
+                  <tr>
+                    <th className="py-2 px-3 text-start sticky start-0 bg-slate-100 dark:bg-slate-900 z-10">
+                      {isAr ? 'الفئة / الفرع' : 'Category / Branch'}
+                    </th>
+                    <th className="py-2 px-2 text-center">{isAr ? 'السابقة' : 'Prev'}</th>
+                    <th className="py-2 px-2 text-center">{isAr ? 'الحالية' : 'Curr'}</th>
+                    <th className="py-2 px-2 text-center">{isAr ? 'التغير' : 'Change'}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {shiftsPg.pageItems.map((item, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                      <td className="py-2 px-3 font-bold text-slate-900 dark:text-white sticky start-0 bg-white dark:bg-slate-800 z-10 whitespace-nowrap">
+                        {item.name}
+                      </td>
+                      <td className="py-2 px-2 text-center font-mono">
+                        {formatCurrency(item.prevRev, isAr)}
+                      </td>
+                      <td className="py-2 px-2 text-center font-mono font-bold">
+                        {formatCurrency(item.currRev, isAr)}
+                      </td>
+                      <td className="py-2 px-2 text-center">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                            item.pct >= 0
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                              : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                          }`}
+                        >
+                          {item.pct >= 0 ? '+' : ''}
+                          {item.pct.toFixed(1)}%
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pagination
+              page={shiftsPg.page}
+              totalPages={shiftsPg.totalPages}
+              pageSize={shiftsPg.pageSize}
+              total={shiftsPg.total}
+              onPageChange={shiftsPg.setPage}
+              onPageSizeChange={shiftsPg.setPageSize}
+              pageSizeOptions={[5, 10, 25, 50]}
+            />
           </div>
         )}
       </div>
