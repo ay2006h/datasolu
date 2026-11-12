@@ -327,6 +327,51 @@ export interface PortfolioHolding {
   weightPercent: number;
   stopLossPrice?: number;
   targetPrice?: number;
+  // Converted to portfolio's unified currency
+  marketValueUnified?: number;
+  totalCostUnified?: number;
+  unrealizedPnLUnified?: number;
+  buyPricesList?: { price: number; quantity: number; date: string }[];
+}
+
+export type PurchasedDecisionType =
+  | 'accumulate_support'   // تعزيز / تعديل متوسط التكلفة قرب الدعم
+  | 'hold_trail_stop'      // احتفاظ مع رفع وقف الخسارة المتحرك لحجز الأرباح
+  | 'partial_profit'       // جني أرباح جزئي مقترح (30% - 50%) عند المقاومة / التشبع
+  | 'hold_watch_bounce'    // احتفاظ ومراقبة ارتداد السعر أعلى الدعم
+  | 'capital_protection';  // حذر / تفعيل وقف حماية رأس المال
+
+export interface PurchasedStockRecommendation {
+  stockId: string;
+  symbol: string;
+  nameAr: string;
+  nameEn: string;
+  currency: string;
+  quantity: number;
+  savedBuyPrices: { price: number; quantity: number; date: string }[];
+  avgBuyPrice: number;
+  currentPrice: number;
+  pnlAmount: number;
+  pnlPercent: number;
+  decisionType: PurchasedDecisionType;
+  decisionTitleAr: string;
+  decisionTitleEn: string;
+  rationaleAr: string;
+  rationaleEn: string;
+  indicatorSignals: {
+    rsiStatusAr: string;
+    rsiStatusEn: string;
+    trendStatusAr: string;
+    trendStatusEn: string;
+    fairValueStatusAr: string;
+    fairValueStatusEn: string;
+  };
+  suggestedLevels: {
+    breakEvenPrice: number;
+    suggestedStopLoss: number;
+    nextTargetPrice: number;
+    accumulateZonePrice: number;
+  };
 }
 
 export interface StockTradePlan {

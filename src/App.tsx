@@ -23,6 +23,13 @@ import { generateBusinessInsights } from './utils/insightsGenerator';
 import { getSampleSalesData, getSampleInventoryData } from './utils/sampleData';
 import { exportDashboardToPdf } from './utils/pdfExporter';
 import {
+  CURRENCY_OPTIONS,
+  SupportedCurrency,
+  getSectionCurrency,
+  setSectionCurrency,
+} from './utils/currencyManager';
+import { APP_VERSION } from './constants/version';
+import {
   Sparkles,
   TrendingUp,
   Package,
@@ -206,17 +213,35 @@ export const App: React.FC = () => {
         }
   );
 
+  // Independent per-section currencies (Sales vs Inventory)
+  const [salesCurrency, setSalesCurrencyState] = useState<SupportedCurrency>(() =>
+    getSectionCurrency('sales', 'SAR')
+  );
+  const [inventoryCurrency, setInventoryCurrencyState] = useState<SupportedCurrency>(() =>
+    getSectionCurrency('inventory', 'SAR')
+  );
+
+  const handleSalesCurrencyChange = (curr: SupportedCurrency) => {
+    setSectionCurrency('sales', curr);
+    setSalesCurrencyState(curr);
+  };
+
+  const handleInventoryCurrencyChange = (curr: SupportedCurrency) => {
+    setSectionCurrency('inventory', curr);
+    setInventoryCurrencyState(curr);
+  };
+
   useEffect(() => {
     if (activeSalesSheet) {
       setSalesMapping(autoDetectSalesMapping(activeSalesSheet.columns));
     }
   }, [activeSalesSheet]);
 
-  // Dynamic calculations for Sales Mode (respecting salesMapping)
+  // Dynamic calculations for Sales Mode (respecting salesMapping & salesCurrency)
   const kpis = useMemo(() => {
     if (!activeSalesSheet) return [];
     return computeKpiMetrics(activeSalesSheet, language, salesMapping);
-  }, [activeSalesSheet, language, salesMapping]);
+  }, [activeSalesSheet, language, salesMapping, salesCurrency]);
 
   const businessStatus = useMemo(() => {
     if (!activeSalesSheet) {
@@ -637,25 +662,54 @@ export const App: React.FC = () => {
            ===================================================================== */}
         {appMode === 'sales' && (
           <div className="space-y-8">
-            {/* Independent Sales File Upload & Sheet Selector */}
+            {/* Independent Sales Section Currency Selector & Privacy Bar */}
             <section className="space-y-3">
-              {salesWorkbook && (
-                <div className="flex items-center justify-between bg-emerald-50/80 dark:bg-slate-800/80 px-4 py-2.5 rounded-2xl border border-emerald-200 dark:border-slate-700 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-emerald-50/90 dark:bg-slate-800/90 px-4 py-3 rounded-2xl border border-emerald-200 dark:border-slate-700 text-xs">
+                <div className="flex flex-wrap items-center gap-3">
                   <span className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
                     <Lock className="w-4 h-4 text-emerald-600" />
                     {isAr
                       ? 'البيانات الحالية محفوظة داخلياً على جهازك فقط — لا علاقة لنا ببياناتك'
                       : 'Data saved internally on your device only'}
                   </span>
-                  <button
-                    onClick={() => setSalesWorkbook(null)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black transition-all"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>{isAr ? 'مسح البيانات الحالية' : 'Clear Current Data'}</span>
-                  </button>
                 </div>
-              )}
+
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <div className="flex items-center gap-2 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-emerald-300 dark:border-slate-600">
+                    <span className="font-extrabold text-emerald-700 dark:text-emerald-400">
+                      {isAr ? 'عملة قسم المبيعات:' : 'Sales Section Currency:'}
+                    </span>
+                    <select
+                      value={salesCurrency}
+                      onChange={(e) =>
+                        handleSalesCurrencyChange(e.target.value as SupportedCurrency)
+                      }
+                      className="bg-transparent font-black text-slate-900 dark:text-white focus:outline-none cursor-pointer"
+                    >
+                      {CURRENCY_OPTIONS.map((c) => (
+                        <option
+                          key={c.code}
+                          value={c.code}
+                          className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                        >
+                          {c.flag} {isAr ? c.nameAr : c.nameEn}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {salesWorkbook && (
+                    <button
+                      onClick={() => setSalesWorkbook(null)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black transition-all"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>{isAr ? 'مسح البيانات الحالية' : 'Clear Current Data'}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <FileUpload
                 mode="sales"
                 onDataLoaded={(data) => {
@@ -668,7 +722,7 @@ export const App: React.FC = () => {
             </section>
 
             {activeSalesSheet && (
-              <div id="dashboard-export-area" className="space-y-8">
+              <div id="dashboard-export-area" key={salesCurrency} className="space-y-8">
                 {/* 1. Sales Column Mapping + Strengths, Weaknesses & Improvement Proposals */}
                 {(activeTab === 'dashboard' || activeTab === 'swot') && (
                   <section>
@@ -747,25 +801,52 @@ export const App: React.FC = () => {
            ===================================================================== */}
         {appMode === 'inventory' && (
           <div className="space-y-8">
-            {/* Independent Inventory File Upload & Sheet Selector */}
+            {/* Independent Inventory Section Currency Selector & Privacy Bar */}
             <section className="space-y-3">
-              {inventoryWorkbook && (
-                <div className="flex items-center justify-between bg-amber-50/80 dark:bg-slate-800/80 px-4 py-2.5 rounded-2xl border border-amber-200 dark:border-slate-700 text-xs">
-                  <span className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
-                    <Lock className="w-4 h-4 text-emerald-600" />
-                    {isAr
-                      ? 'البيانات الحالية محفوظة داخلياً على جهازك فقط — لا علاقة لنا ببياناتك'
-                      : 'Data saved internally on your device only'}
-                  </span>
-                  <button
-                    onClick={() => setInventoryWorkbook(null)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black transition-all"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>{isAr ? 'مسح البيانات الحالية' : 'Clear Current Data'}</span>
-                  </button>
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-amber-50/90 dark:bg-slate-800/90 px-4 py-3 rounded-2xl border border-amber-200 dark:border-slate-700 text-xs">
+                <span className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-emerald-600" />
+                  {isAr
+                    ? 'البيانات الحالية محفوظة داخلياً على جهازك فقط — لا علاقة لنا ببياناتك'
+                    : 'Data saved internally on your device only'}
+                </span>
+
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <div className="flex items-center gap-2 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-amber-300 dark:border-slate-600">
+                    <span className="font-extrabold text-amber-700 dark:text-amber-400">
+                      {isAr ? 'عملة قسم المخزون والأصناف:' : 'Inventory Section Currency:'}
+                    </span>
+                    <select
+                      value={inventoryCurrency}
+                      onChange={(e) =>
+                        handleInventoryCurrencyChange(e.target.value as SupportedCurrency)
+                      }
+                      className="bg-transparent font-black text-slate-900 dark:text-white focus:outline-none cursor-pointer"
+                    >
+                      {CURRENCY_OPTIONS.map((c) => (
+                        <option
+                          key={c.code}
+                          value={c.code}
+                          className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                        >
+                          {c.flag} {isAr ? c.nameAr : c.nameEn}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {inventoryWorkbook && (
+                    <button
+                      onClick={() => setInventoryWorkbook(null)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black transition-all"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>{isAr ? 'مسح البيانات الحالية' : 'Clear Current Data'}</span>
+                    </button>
+                  )}
                 </div>
-              )}
+              </div>
+
               <FileUpload
                 mode="inventory"
                 onDataLoaded={(data) => {
@@ -778,7 +859,7 @@ export const App: React.FC = () => {
             </section>
 
             {activeInventorySheet && (
-              <div id="dashboard-export-area" className="space-y-8">
+              <div id="dashboard-export-area" key={inventoryCurrency} className="space-y-8">
                 {/* 1. Main Product Velocity, King Items, Manual Period & Restock Engine */}
                 {(activeTab === 'inventory_main' || activeTab === 'dashboard') && (
                   <section>
@@ -823,6 +904,9 @@ export const App: React.FC = () => {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <span className="font-bold text-slate-700 dark:text-slate-200">DataSolu</span>
+              <span className="px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-mono text-[10px] font-black">
+                {APP_VERSION}
+              </span>
               <span>-</span>
               <span>{t.app.tagline}</span>
             </div>

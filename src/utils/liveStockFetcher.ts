@@ -20,7 +20,9 @@ export interface PopularTickerInfo {
  * Reference catalog of real market tickers (used when searching by Arabic/English name or symbol).
  */
 export const REAL_MARKET_TICKER_CATALOG: PopularTickerInfo[] = [
-  // Saudi Tadawul (.SR)
+  // ============================================================================
+  // 1. Saudi Tadawul (.SR) — السوق السعودي (تداول)
+  // ============================================================================
   { symbol: '1120.SR', nameAr: 'مصرف الراجحي', nameEn: 'Al Rajhi Bank', market: 'saudi', currency: 'SAR', sectorAr: 'البنوك والخدمات المالية', sectorEn: 'Banking' },
   { symbol: '2222.SR', nameAr: 'أرامكو السعودية', nameEn: 'Saudi Aramco', market: 'saudi', currency: 'SAR', sectorAr: 'الطاقة والنفط', sectorEn: 'Energy' },
   { symbol: '1180.SR', nameAr: 'البنك الأهلي السعودي', nameEn: 'SNB Bank', market: 'saudi', currency: 'SAR', sectorAr: 'البنوك والخدمات المالية', sectorEn: 'Banking' },
@@ -29,14 +31,24 @@ export const REAL_MARKET_TICKER_CATALOG: PopularTickerInfo[] = [
   { symbol: '1150.SR', nameAr: 'مصرف الإنماء', nameEn: 'Alinma Bank', market: 'saudi', currency: 'SAR', sectorAr: 'البنوك والخدمات المالية', sectorEn: 'Banking' },
   { symbol: '7203.SR', nameAr: 'علم لأمن المعلومات', nameEn: 'Elm Co.', market: 'saudi', currency: 'SAR', sectorAr: 'التقنية والبرمجيات', sectorEn: 'Technology' },
   { symbol: '1211.SR', nameAr: 'معادن (التعدين العربية السعودية)', nameEn: 'Maaden', market: 'saudi', currency: 'SAR', sectorAr: 'التعدين والموارد', sectorEn: 'Mining' },
+  { symbol: '2082.SR', nameAr: 'أكوا باور', nameEn: 'ACWA Power', market: 'saudi', currency: 'SAR', sectorAr: 'المرافق والطاقة المتجددة', sectorEn: 'Utilities' },
   { symbol: '2280.SR', nameAr: 'شركة المراعي', nameEn: 'Almarai', market: 'saudi', currency: 'SAR', sectorAr: 'الأغذية والزراعة', sectorEn: 'Food & Beverage' },
   { symbol: '4013.SR', nameAr: 'سليمان الحبيب للخدمات الطبية', nameEn: 'Dr. Sulaiman Al Habib', market: 'saudi', currency: 'SAR', sectorAr: 'الرعاية الصحية', sectorEn: 'Healthcare' },
   { symbol: '1010.SR', nameAr: 'بنك الرياض', nameEn: 'Riyad Bank', market: 'saudi', currency: 'SAR', sectorAr: 'البنوك والخدمات المالية', sectorEn: 'Banking' },
   { symbol: '1140.SR', nameAr: 'بنك البلاد', nameEn: 'Bank Albilad', market: 'saudi', currency: 'SAR', sectorAr: 'البنوك والخدمات المالية', sectorEn: 'Banking' },
   { symbol: '2020.SR', nameAr: 'سابك للمغذيات الزراعية', nameEn: 'SABIC Agri-Nutrients', market: 'saudi', currency: 'SAR', sectorAr: 'البتروكيماويات والأسمدة', sectorEn: 'Chemicals' },
   { symbol: '7020.SR', nameAr: 'اتحاد اتصالات (موبايلي)', nameEn: 'Mobily', market: 'saudi', currency: 'SAR', sectorAr: 'الاتصالات وتقنية المعلومات', sectorEn: 'Telecom' },
+  { symbol: '4190.SR', nameAr: 'مكتبة جرير', nameEn: 'Jarir Marketing', market: 'saudi', currency: 'SAR', sectorAr: 'التجزئة والسلع الكمالية', sectorEn: 'Retail' },
+  { symbol: '4002.SR', nameAr: 'المواساة للخدمات الطبية', nameEn: 'Mouwasat Medical', market: 'saudi', currency: 'SAR', sectorAr: 'الرعاية الصحية', sectorEn: 'Healthcare' },
+  { symbol: '4300.SR', nameAr: 'دار الأركان للتطوير العقاري', nameEn: 'Dar Al Arkan', market: 'saudi', currency: 'SAR', sectorAr: 'التطوير العقاري', sectorEn: 'Real Estate' },
+  { symbol: '4250.SR', nameAr: 'جبل عمر للتطوير', nameEn: 'Jabal Omar', market: 'saudi', currency: 'SAR', sectorAr: 'التطوير العقاري', sectorEn: 'Real Estate' },
+  { symbol: '5110.SR', nameAr: 'الكهرباء السعودية', nameEn: 'Saudi Electricity', market: 'saudi', currency: 'SAR', sectorAr: 'المرافق العامة', sectorEn: 'Utilities' },
+  { symbol: '2380.SR', nameAr: 'بترو رابغ', nameEn: 'Petro Rabigh', market: 'saudi', currency: 'SAR', sectorAr: 'الطاقة والبتروكيماويات', sectorEn: 'Energy' },
+  { symbol: '1020.SR', nameAr: 'بنك الجزيرة', nameEn: 'Bank AlJazira', market: 'saudi', currency: 'SAR', sectorAr: 'البنوك والخدمات المالية', sectorEn: 'Banking' },
 
-  // Egyptian Exchange (.CA)
+  // ============================================================================
+  // 2. Egyptian Exchange (.CA) — البورصة المصرية (EGX)
+  // ============================================================================
   { symbol: 'COMI.CA', nameAr: 'البنك التجاري الدولي - مصر', nameEn: 'CIB Egypt', market: 'egypt', currency: 'EGP', sectorAr: 'البنوك والخدمات المالية', sectorEn: 'Banking' },
   { symbol: 'SWDY.CA', nameAr: 'السويدي إليكتريك', nameEn: 'Elsewedy Electric', market: 'egypt', currency: 'EGP', sectorAr: 'الصناعة والكابلات والطاقة', sectorEn: 'Industrials' },
   { symbol: 'TMGH.CA', nameAr: 'مجموعة طلعت مصطفى القابضة', nameEn: 'Talaat Moustafa Group', market: 'egypt', currency: 'EGP', sectorAr: 'العقارات والسياحة', sectorEn: 'Real Estate' },
@@ -48,8 +60,15 @@ export const REAL_MARKET_TICKER_CATALOG: PopularTickerInfo[] = [
   { symbol: 'HRHO.CA', nameAr: 'مجموعة إي إف جي القابضة (هيرميس)', nameEn: 'EFG Holding', market: 'egypt', currency: 'EGP', sectorAr: 'الخدمات المالية غير المصرفية', sectorEn: 'Financials' },
   { symbol: 'EAST.CA', nameAr: 'الشرقية للدخان (إيسترن كومباني)', nameEn: 'Eastern Company', market: 'egypt', currency: 'EGP', sectorAr: 'الأغذية والسلع الاستهلاكية', sectorEn: 'Consumer' },
   { symbol: 'ESRS.CA', nameAr: 'حديد عز', nameEn: 'Ezz Steel', market: 'egypt', currency: 'EGP', sectorAr: 'الصناعة والمعادن', sectorEn: 'Basic Materials' },
+  { symbol: 'AMOC.CA', nameAr: 'الإسكندرية للزيوت المعدنية (أموك)', nameEn: 'AMOC', market: 'egypt', currency: 'EGP', sectorAr: 'الطاقة والبتروكيماويات', sectorEn: 'Energy' },
+  { symbol: 'HELI.CA', nameAr: 'مصر الجديدة للإسكان والتعمير', nameEn: 'Heliopolis Housing', market: 'egypt', currency: 'EGP', sectorAr: 'العقارات والإنشاءات', sectorEn: 'Real Estate' },
+  { symbol: 'PHDC.CA', nameAr: 'بالم هيلز للتعمير', nameEn: 'Palm Hills Developments', market: 'egypt', currency: 'EGP', sectorAr: 'العقارات والسياحة', sectorEn: 'Real Estate' },
+  { symbol: 'ORAS.CA', nameAr: 'أوراسكوم كونستراكشون', nameEn: 'Orascom Construction', market: 'egypt', currency: 'EGP', sectorAr: 'المقاولات والإنشاءات', sectorEn: 'Construction' },
+  { symbol: 'GBCO.CA', nameAr: 'جي بي كورب (غبور أوتو)', nameEn: 'GB Corp', market: 'egypt', currency: 'EGP', sectorAr: 'السيارات والتمويل', sectorEn: 'Automotive' },
 
-  // US Market (Wall Street)
+  // ============================================================================
+  // 3. US Market (Wall Street) — السوق الأمريكي
+  // ============================================================================
   { symbol: 'AAPL', nameAr: 'آبل (Apple)', nameEn: 'Apple Inc.', market: 'us', currency: 'USD', sectorAr: 'التكنولوجيا والأجهزة الذكية', sectorEn: 'Technology' },
   { symbol: 'MSFT', nameAr: 'مايكروسوفت (Microsoft)', nameEn: 'Microsoft Corp.', market: 'us', currency: 'USD', sectorAr: 'البرمجيات والحوسبة السحابية', sectorEn: 'Technology' },
   { symbol: 'NVDA', nameAr: 'إنفيديا (NVIDIA)', nameEn: 'NVIDIA Corp.', market: 'us', currency: 'USD', sectorAr: 'أشباه الموصلات والذكاء الاصطناعي', sectorEn: 'Semiconductors' },
@@ -58,11 +77,28 @@ export const REAL_MARKET_TICKER_CATALOG: PopularTickerInfo[] = [
   { symbol: 'META', nameAr: 'ميتا بلاتفورمز (Meta)', nameEn: 'Meta Platforms', market: 'us', currency: 'USD', sectorAr: 'التواصل الاجتماعي والذكاء الاصطناعي', sectorEn: 'Technology' },
   { symbol: 'TSLA', nameAr: 'تسلا (Tesla)', nameEn: 'Tesla Inc.', market: 'us', currency: 'USD', sectorAr: 'السيارات الكهربائية والطاقة', sectorEn: 'Automotive' },
   { symbol: 'AMD', nameAr: 'إيه إم دي (AMD)', nameEn: 'Advanced Micro Devices', market: 'us', currency: 'USD', sectorAr: 'أشباه الموصلات', sectorEn: 'Semiconductors' },
+  { symbol: 'AVGO', nameAr: 'برودكوم (Broadcom)', nameEn: 'Broadcom Inc.', market: 'us', currency: 'USD', sectorAr: 'أشباه الموصلات والشبكات', sectorEn: 'Semiconductors' },
+  { symbol: 'BRK-B', nameAr: 'بيركشاير هاثاواي (Berkshire)', nameEn: 'Berkshire Hathaway', market: 'us', currency: 'USD', sectorAr: 'الاستثمار والخدمات المالية', sectorEn: 'Financials' },
+  { symbol: 'JPM', nameAr: 'جي بي مورغان تشيس (JPMorgan)', nameEn: 'JPMorgan Chase', market: 'us', currency: 'USD', sectorAr: 'البنوك والخدمات المالية', sectorEn: 'Banking' },
+  { symbol: 'LLY', nameAr: 'إيلي ليلي للأدوية (Eli Lilly)', nameEn: 'Eli Lilly & Co.', market: 'us', currency: 'USD', sectorAr: 'الأدوية والرعاية الصحية', sectorEn: 'Healthcare' },
+  { symbol: 'V', nameAr: 'فيزا للمدفوعات (Visa)', nameEn: 'Visa Inc.', market: 'us', currency: 'USD', sectorAr: 'المدفوعات الرقمية', sectorEn: 'Fintech' },
+  { symbol: 'MA', nameAr: 'ماستركارد (Mastercard)', nameEn: 'Mastercard Inc.', market: 'us', currency: 'USD', sectorAr: 'المدفوعات الرقمية', sectorEn: 'Fintech' },
+  { symbol: 'NFLX', nameAr: 'نتفليكس (Netflix)', nameEn: 'Netflix Inc.', market: 'us', currency: 'USD', sectorAr: 'الترفيه والبث الرقمي', sectorEn: 'Media' },
+  { symbol: 'COST', nameAr: 'كوستكو للتجزئة (Costco)', nameEn: 'Costco Wholesale', market: 'us', currency: 'USD', sectorAr: 'التجزئة والسلع الاستهلاكية', sectorEn: 'Retail' },
 
-  // UAE Market (Dubai & Abu Dhabi .AE on Yahoo Finance)
+  // ============================================================================
+  // 4. UAE Market (Dubai & Abu Dhabi .AE) — سوق الإمارات المالي
+  // ============================================================================
   { symbol: 'EMAAR.AE', nameAr: 'إعمار العقارية - دبي', nameEn: 'Emaar Properties', market: 'uae', currency: 'AED', sectorAr: 'التطوير العقاري', sectorEn: 'Real Estate' },
   { symbol: 'DIB.AE', nameAr: 'بنك دبي الإسلامي', nameEn: 'Dubai Islamic Bank', market: 'uae', currency: 'AED', sectorAr: 'البنوك والخدمات المالية', sectorEn: 'Banking' },
   { symbol: 'DEWA.AE', nameAr: 'هيئة كهرباء ومياه دبي (ديوا)', nameEn: 'DEWA', market: 'uae', currency: 'AED', sectorAr: 'المرافق والطاقة', sectorEn: 'Utilities' },
+  { symbol: 'EMAARDEV.AE', nameAr: 'إعمار للتطوير', nameEn: 'Emaar Development', market: 'uae', currency: 'AED', sectorAr: 'التطوير العقاري', sectorEn: 'Real Estate' },
+  { symbol: 'AIRARABIA.AE', nameAr: 'العربية للطيران', nameEn: 'Air Arabia', market: 'uae', currency: 'AED', sectorAr: 'الطيران والنقل', sectorEn: 'Aviation' },
+  { symbol: 'DFM.AE', nameAr: 'سوق دبي المالي', nameEn: 'Dubai Financial Market', market: 'uae', currency: 'AED', sectorAr: 'الخدمات المالية والأسواق', sectorEn: 'Financials' },
+  { symbol: 'DU.AE', nameAr: 'الإمارات للاتصالات المتكاملة (دو)', nameEn: 'du Telecom', market: 'uae', currency: 'AED', sectorAr: 'الاتصالات وتقنية المعلومات', sectorEn: 'Telecom' },
+  { symbol: 'ARAMEX.AE', nameAr: 'أرامكس للخدمات اللوجستية', nameEn: 'Aramex', market: 'uae', currency: 'AED', sectorAr: 'النقل واللوجستيات', sectorEn: 'Logistics' },
+  { symbol: 'SALIK.AE', nameAr: 'سالك للتعرفة المرورية - دبي', nameEn: 'Salik Company', market: 'uae', currency: 'AED', sectorAr: 'البنية التحتية والنقل', sectorEn: 'Infrastructure' },
+  { symbol: 'PARKIN.AE', nameAr: 'باركن للمواقف - دبي', nameEn: 'Parkin Company', market: 'uae', currency: 'AED', sectorAr: 'الخدمات العامة والنقل', sectorEn: 'Services' },
 ];
 
 /**

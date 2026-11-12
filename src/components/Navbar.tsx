@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   BarChart3,
   Globe,
@@ -11,9 +11,13 @@ import {
   Package,
   LayoutGrid,
   CandlestickChart,
+  Tag,
+  X,
+  CheckCircle2,
 } from 'lucide-react';
 import { useI18n } from '../locales/i18nContext';
 import { AppMode } from '../types';
+import { APP_VERSION, APP_LAST_UPDATED, VERSION_CHANGELOG } from '../constants/version';
 
 interface NavbarProps {
   appMode: AppMode;
@@ -38,6 +42,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const { language, toggleLanguage, theme, toggleTheme, t } = useI18n();
   const isAr = language === 'ar';
+  const [showVersionModal, setShowVersionModal] = useState<boolean>(false);
 
   const salesNavItems = [
     { id: 'dashboard', label: isAr ? 'لوحة المبيعات الشاملة' : 'Sales Dashboard' },
@@ -56,8 +61,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   ];
 
   const stocksNavItems = [
-    { id: 'stocks_overview', label: isAr ? 'ترشيحات الموقع وفحص الأسهم' : 'Site Picks & Screener' },
+    { id: 'stocks_overview', label: isAr ? 'استكشاف وفحص الأسهم' : 'Explorer & Screener' },
     { id: 'stocks_portfolio', label: isAr ? 'المحفظة والشراء والبيع' : 'Portfolio & Buy/Sell' },
+    { id: 'stocks_purchased', label: isAr ? 'توصيات الأسهم المشتراة' : 'Purchased Stock Decisions' },
     { id: 'stocks_plans', label: isAr ? 'الخطط المحتملة والسيناريوهات' : 'Trade Plans & Scenarios' },
     { id: 'stocks_opinions', label: isAr ? 'الرأي الشخصي والرؤى' : 'Personal Opinions & Visions' },
   ];
@@ -74,7 +80,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 gap-3">
           {/* Logo & Brand (Clicks back to Home Mode Selector) */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             <button
               onClick={() => setAppMode('home')}
               className="flex items-center gap-3 text-start group"
@@ -84,7 +90,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <BarChart3 className="w-6 h-6" />
               </div>
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <span className="font-extrabold text-xl tracking-tight text-slate-900 dark:text-white font-cairo">
                     DataSolu
                   </span>
@@ -96,6 +102,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {t.app.title}
                 </p>
               </div>
+            </button>
+
+            {/* Site Version Badge (يتحدث مع كل تعديل وتحديث للموقع) */}
+            <button
+              onClick={() => setShowVersionModal(true)}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-indigo-600/10 hover:bg-indigo-600/20 dark:bg-indigo-500/20 dark:hover:bg-indigo-500/30 text-indigo-700 dark:text-indigo-300 border border-indigo-400/40 text-[11px] font-black transition-all"
+              title={
+                isAr
+                  ? `إصدار الموقع الحالي ${APP_VERSION} — اضغط لعرض سجل التحديثات`
+                  : `Current Site Version ${APP_VERSION} — Click for changelog`
+              }
+            >
+              <Tag className="w-3 h-3 text-indigo-500" />
+              <span>{isAr ? `إصدار ${APP_VERSION}` : APP_VERSION}</span>
             </button>
 
             {/* Primary Workspace Switcher Pills (Home / Sales Analysis / Inventory Analysis) */}
@@ -252,6 +272,89 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         )}
       </div>
+
+      {/* Site Version & Release Changelog Modal */}
+      {showVersionModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-5 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md">
+                  <Tag className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                      {isAr
+                        ? `سجل إصدارات وتحديثات المنصة (${APP_VERSION})`
+                        : `Platform Version & Release Log (${APP_VERSION})`}
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] font-black">
+                      {isAr ? `آخر تحديث: ${APP_LAST_UPDATED}` : `Updated: ${APP_LAST_UPDATED}`}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {isAr
+                      ? 'يتم رفع رقم الإصدار تلقائياً مع كل تطوير أو إضافة ميزة جديدة في الموقع'
+                      : 'Version number increments upward with every platform update'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowVersionModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto space-y-4 pe-1">
+              {VERSION_CHANGELOG.map((rel, idx) => (
+                <div
+                  key={rel.version}
+                  className={`p-4 rounded-2xl border ${
+                    idx === 0
+                      ? 'bg-indigo-50/70 dark:bg-indigo-950/30 border-indigo-300 dark:border-indigo-700'
+                      : 'bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-700'
+                  } space-y-2`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-lg bg-indigo-600 text-white font-mono text-xs font-black">
+                        {rel.version}
+                      </span>
+                      <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white">
+                        {isAr ? rel.titleAr : rel.titleEn}
+                      </h4>
+                    </div>
+                    <span className="text-[11px] font-mono text-slate-400">{rel.date}</span>
+                  </div>
+                  <ul className="space-y-1.5 pt-1">
+                    {(isAr ? rel.highlightsAr : rel.highlightsEn).map((h, i) => (
+                      <li
+                        key={i}
+                        className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0 mt-0.5" />
+                        <span>{h}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex justify-end">
+              <button
+                onClick={() => setShowVersionModal(false)}
+                className="px-5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-black"
+              >
+                {isAr ? 'إغلاق' : 'Close'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 };

@@ -7,7 +7,10 @@ import {
   AnalyticalSignal,
   SitePickCategory,
   MarketRegion,
+  PurchasedStockRecommendation,
+  PurchasedDecisionType,
 } from '../types';
+import { convertCurrency, DEFAULT_FX_RATES_PER_USD } from './currencyManager';
 
 export const DEFAULT_STOCKS_DATA: StockItem[] = [
   // =========================================================================
@@ -699,11 +702,15 @@ export const DEFAULT_PERSONAL_OPINIONS: PersonalStockOpinion[] = [
 
 /**
  * Computes current portfolio holdings and realized/unrealized P&L from transaction history & live stock prices.
+ * Supports multi-currency portfolio unification into `unifiedCurrency` using live daily `fxRatesPerUsd`
+ * while preserving each individual holding's native currency.
  */
 export function computePortfolioSummary(
   stocks: StockItem[],
   transactions: StockTransaction[],
-  cashBalance: number
+  cashBalanceInUnifiedCurrency: number,
+  unifiedCurrency: string = 'SAR',
+  fxRatesPerUsd: Record<string, number> = DEFAULT_FX_RATES_PER_USD
 ): {
   holdings: PortfolioHolding[];
   totalInvestedCost: number;
@@ -737,6 +744,7 @@ export function computePortfolioSummary(
       quantity: number;
       totalCost: number;
       avgCostPrice: number;
+      buyPricesList: { price: number; quantity: number; date: string }[];
     }
   >();
 
@@ -758,6 +766,7 @@ export function computePortfolioSummary(
       quantity: 0,
       totalCost: 0,
       avgCostPrice: 0,
+      buyPricesList: [],
     };
 
     if (tx.type === 'buy') {
@@ -767,6 +776,11 @@ export function computePortfolioSummary(
       currentPos.quantity = newQty;
       currentPos.totalCost = newTotalCost;
       currentPos.avgCostPrice = newQty > 0 ? newTotalCost / newQty : 0;
+      currentPos.buyPricesList.push({
+        price: tx.price,
+        quantity: tx.quantity,
+        date: tx.date,
+      });
       positions.set(tx.stockId, currentPos);
     } else if (tx.type === 'sell') {
       const sellProceeds = tx.quantity * tx.price - (tx.commission || 0);
@@ -776,7 +790,13 @@ export function computePortfolioSummary(
           ? tx.realizedPnL
           : sellProceeds - costBasisOfSold;
 
-      totalRealizedPnL += tradePnL;
+      const tradePnLUnified = convertCurrency(
+        tradePnL,
+        currentPos.currency,
+        unifiedCurrency,
+        fxRatesPerUsd
+      );
+      totalRealizedPnL += tradePnLUnified;
       if (tradePnL >= 0) winTradesCount++;
       else lossTradesCount++;
 
@@ -800,8 +820,23 @@ export function computePortfolioSummary(
     const unrealizedPnLPercent =
       pos.totalCost > 0 ? (unrealizedPnL / pos.totalCost) * 100 : 0;
 
-    totalInvestedCost += pos.totalCost;
-    totalMarketValue += marketValue;
+    // Convert this holding's cost and market value to the portfolio's unified currency
+    const totalCostUnified = convertCurrency(
+      pos.totalCost,
+      pos.currency,
+      unifiedCurrency,
+      fxRatesPerUsd
+    );
+    const marketValueUnified = convertCurrency(
+      marketValue,
+      pos.currency,
+      unifiedCurrency,
+      fxRatesPerUsd
+    );
+    const unrealizedPnLUnified = marketValueUnified - totalCostUnified;
+
+    totalInvestedCost += totalCostUnified;
+    totalMarketValue += marketValueUnified;
 
     rawHoldings.push({
       stockId: pos.stockId,
@@ -819,24 +854,29 @@ export function computePortfolioSummary(
       marketValue,
       unrealizedPnL,
       unrealizedPnLPercent,
-      weightPercent: 0, // computed below
+      weightPercent: 0, // computed below using unified currency
       stopLossPrice: liveStock ? liveStock.support1 : undefined,
       targetPrice: liveStock ? liveStock.estimatedFairValue : undefined,
+      marketValueUnified,
+      totalCostUnified,
+      unrealizedPnLUnified,
+      buyPricesList: pos.buyPricesList,
     });
   });
 
-  // Compute weightPercent
+  // Compute weightPercent accurately across currencies using unified market value
   const holdings = rawHoldings
     .map((h) => ({
       ...h,
-      weightPercent: totalMarketValue > 0 ? (h.marketValue / totalMarketValue) * 100 : 0,
+      weightPercent:
+        totalMarketValue > 0 ? ((h.marketValueUnified ?? h.marketValue) / totalMarketValue) * 100 : 0,
     }))
-    .sort((a, b) => b.marketValue - a.marketValue);
+    .sort((a, b) => (b.marketValueUnified ?? b.marketValue) - (a.marketValueUnified ?? a.marketValue));
 
   const totalUnrealizedPnL = totalMarketValue - totalInvestedCost;
   const totalUnrealizedPnLPercent =
     totalInvestedCost > 0 ? (totalUnrealizedPnL / totalInvestedCost) * 100 : 0;
-  const totalPortfolioEquity = totalMarketValue + cashBalance;
+  const totalPortfolioEquity = totalMarketValue + cashBalanceInUnifiedCurrency;
 
   return {
     holdings,
@@ -849,6 +889,162 @@ export function computePortfolioSummary(
     winTradesCount,
     lossTradesCount,
   };
+}
+
+/**
+ * Generates specialized recommendations & indicator-based candidate decisions
+ * specifically for stocks the user has purchased, comparing their saved buy prices
+ * against live market prices and technical/fundamental indicators.
+ */
+export function evaluatePurchasedStocksRecommendations(
+  holdings: PortfolioHolding[],
+  stocks: StockItem[]
+): PurchasedStockRecommendation[] {
+  const stockMap = new Map<string, StockItem>();
+  stocks.forEach((s) => stockMap.set(s.id, s));
+
+  return holdings.map((h) => {
+    const st = stockMap.get(h.stockId);
+    const currentPrice = st ? st.currentPrice : h.currentPrice;
+    const avgBuy = h.avgCostPrice;
+    const pnlAmount = h.unrealizedPnL;
+    const pnlPercent = h.unrealizedPnLPercent;
+
+    const rsi = st ? st.rsi14 : 50;
+    const ma50 = st ? st.ma50 : currentPrice * 0.98;
+    const ma200 = st ? st.ma200 : currentPrice * 0.95;
+    const support1 = st ? st.support1 : Number((currentPrice * 0.95).toFixed(2));
+    const support2 = st ? st.support2 : Number((currentPrice * 0.9).toFixed(2));
+    const resistance1 = st ? st.resistance1 : Number((currentPrice * 1.06).toFixed(2));
+    const fairValue = st ? st.estimatedFairValue : Number((currentPrice * 1.12).toFixed(2));
+
+    // Indicator status descriptions
+    const rsiStatusAr =
+      rsi >= 70
+        ? `تشبع شرائي (${rsi}) — قرب منطقة جني أرباح`
+        : rsi <= 38
+        ? `تشبع بيعي (${rsi}) — فرصة ارتداد فني محتملة`
+        : `متوازن وإيجابي (${rsi})`;
+    const rsiStatusEn =
+      rsi >= 70
+        ? `Overbought (${rsi}) — Take-profit zone`
+        : rsi <= 38
+        ? `Oversold (${rsi}) — Potential bounce`
+        : `Balanced (${rsi})`;
+
+    const trendStatusAr =
+      currentPrice >= ma50 && ma50 >= ma200
+        ? `مسار صاعد قوي (أعلى MA50: ${ma50} و MA200: ${ma200})`
+        : currentPrice >= ma50
+        ? `ارتداد إيجابي قصير المدى أعلى MA50 (${ma50})`
+        : currentPrice >= support1
+        ? `يتداول فوق مستوى الدعم الأول (${support1})`
+        : `ضغط بيعي دون الدعم الأول (${support1})`;
+    const trendStatusEn =
+      currentPrice >= ma50 && ma50 >= ma200
+        ? `Strong Uptrend (above MA50 ${ma50} & MA200 ${ma200})`
+        : currentPrice >= ma50
+        ? `Bullish above MA50 (${ma50})`
+        : currentPrice >= support1
+        ? `Holding above Support 1 (${support1})`
+        : `Below Support 1 (${support1})`;
+
+    const upsideToFair =
+      currentPrice > 0 ? ((fairValue - currentPrice) / currentPrice) * 100 : 0;
+    const fairValueStatusAr =
+      upsideToFair >= 5
+        ? `يتداول بخصم ${upsideToFair.toFixed(1)}% دون القيمة العادلة (${fairValue})`
+        : upsideToFair >= -3
+        ? `قريب من القيمة العادلة التقديرية (${fairValue})`
+        : `يتداول أعلى من القيمة العادلة التقديرية (${fairValue})`;
+    const fairValueStatusEn =
+      upsideToFair >= 5
+        ? `${upsideToFair.toFixed(1)}% discount to Fair Value (${fairValue})`
+        : upsideToFair >= -3
+        ? `Near Fair Value (${fairValue})`
+        : `Above Fair Value (${fairValue})`;
+
+    // Determine Candidate Decision based on Buy Price vs Current Price + Indicators
+    let decisionType: PurchasedDecisionType = 'hold_watch_bounce';
+    let decisionTitleAr = 'الاحتفاظ ومراقبة السهم أعلى مناطق الدعم';
+    let decisionTitleEn = 'Hold & Monitor Above Support';
+    let rationaleAr = '';
+    let rationaleEn = '';
+
+    if (pnlPercent >= 8 && (rsi >= 68 || currentPrice >= resistance1 || currentPrice >= fairValue)) {
+      decisionType = 'partial_profit';
+      decisionTitleAr = 'القرار المرشح: جني أرباح جزئي (30% - 50%) ورفع الوقف فوق سعر الشراء';
+      decisionTitleEn = 'Candidate Decision: Partial Profit Taking (30%-50%) & Lock Gains';
+      rationaleAr = `مركزك الشرائي رابح بنسبة (+${pnlPercent.toFixed(2)}%) عن متوسط سعر شرائك المحفوظ (${avgBuy.toFixed(2)} ${h.currency})، مع وصول السعر الحالي (${currentPrice}) إلى منطقة مقاومة/تشبع فني (RSI: ${rsi} | المقاومة: ${resistance1}). استرشادياً يُرشح تأمين جزء من الأرباح ورفع وقف الخسارة إلى (${Number((currentPrice * 0.96).toFixed(2))}) لحماية باقي الكمية.`;
+      rationaleEn = `Your position is up +${pnlPercent.toFixed(2)}% above your saved buy price (${avgBuy.toFixed(2)}), approaching resistance (${resistance1}) / high RSI (${rsi}). Consider partial profit-taking and trailing stop-loss.`;
+    } else if (pnlPercent >= 2 && currentPrice >= ma50 && upsideToFair > 4) {
+      decisionType = 'hold_trail_stop';
+      decisionTitleAr = 'القرار المرشح: الاحتفاظ بالمركز الرابح ورفع وقف الخسارة المتحرك';
+      decisionTitleEn = 'Candidate Decision: Hold Winning Position & Trail Stop-Loss';
+      rationaleAr = `يتداول السهم حالياً (${currentPrice} ${h.currency}) أعلى من سعر شرائك المحفوظ (${avgBuy.toFixed(2)}) بعائد (+${pnlPercent.toFixed(2)}%)، والمؤشرات الفنية تدعم استمرار الاتجاه الصاعد أعلى المتوسط المتحرك (${ma50}) باتجاه الهدف الاسترشادي (${fairValue}). يُرشح الاحتفاظ مع وضع وقف حماية الأرباح عند (${Math.max(support1, Number(avgBuy.toFixed(2)))}).`;
+      rationaleEn = `Trading at ${currentPrice} (+${pnlPercent.toFixed(2)}% above your ${avgBuy.toFixed(2)} buy price) with positive momentum above MA50 (${ma50}) toward ${fairValue}. Hold and trail stop at ${Math.max(support1, Number(avgBuy.toFixed(2)))}.`;
+    } else if (pnlPercent < -3 && rsi <= 48 && upsideToFair >= 6 && currentPrice >= support2 * 0.98) {
+      decisionType = 'accumulate_support';
+      decisionTitleAr = 'القرار المرشح: منطقة تعزيز وتعديل متوسط سعر الشراء قرب الدعم الفني';
+      decisionTitleEn = 'Candidate Decision: Accumulate / Average Down Near Support';
+      rationaleAr = `السعر الحالي (${currentPrice} ${h.currency}) أقل من متوسط شرائك المحفوظ (${avgBuy.toFixed(2)}) بنسبة (${pnlPercent.toFixed(2)}%)، لكن المؤشرات تُظهر تواجد السهم في منطقة دعم فني (${support1} - ${support2}) مع مؤشر قوة نسبية هادئ (RSI: ${rsi}) وهامش صعود نحو القيمة العادلة (${fairValue}). استرشادياً تُعد منطقة ملائمة للتعزيز التدريجي لخفض متوسط التكلفة.`;
+      rationaleEn = `Current price (${currentPrice}) is below your saved buy price (${avgBuy.toFixed(2)}), trading near technical support (${support1}) with low RSI (${rsi}) and upside to Fair Value (${fairValue}). Favorable zone for gradual averaging down.`;
+    } else if (currentPrice < support2 || (pnlPercent < -7 && currentPrice < ma200 && rsi < 42)) {
+      decisionType = 'capital_protection';
+      decisionTitleAr = 'القرار المرشح: حذر وتفعيل خطة حماية رأس المال (مراقبة الدعم الحرج)';
+      decisionTitleEn = 'Candidate Decision: Caution & Capital Protection Alert';
+      rationaleAr = `يتداول السهم (${currentPrice} ${h.currency}) دون متوسط شرائك (${avgBuy.toFixed(2)}) مع ضعف في المؤشرات الفنية وتداوله قرب/أسفل الدعم (${support2}). استرشادياً يُنصح بعدم التسرع في زيادة الكمية حالياً حتى ظهور إشارة ارتداد مؤكدة أعلى (${support1}) والالتزام بمستوى حماية رأس المال.`;
+      rationaleEn = `Trading below saved buy price (${avgBuy.toFixed(2)}) with weak technical momentum near/below support (${support2}). Wait for confirmed bounce above ${support1} before adding.`;
+    } else {
+      decisionType = 'hold_watch_bounce';
+      decisionTitleAr = 'القرار المرشح: الاحتفاظ والمراقبة بين الدعم والمقاومة';
+      decisionTitleEn = 'Candidate Decision: Hold & Monitor Range';
+      rationaleAr = `السعر الحالي (${currentPrice} ${h.currency}) قريب من متوسط سعر شرائك المحفوظ (${avgBuy.toFixed(2)} ${h.currency}) ويتحرك بشكل متوازن بين الدعم الأول (${support1}) والمقاومة الأولى (${resistance1}) مع مؤشر RSI عند (${rsi}). استرشادياً يُرشح الاحتفاظ ومراقبة اختراق (${resistance1}) للانطلاق نحو (${fairValue}).`;
+      rationaleEn = `Current price (${currentPrice}) is near your saved buy price (${avgBuy.toFixed(2)}) within the ${support1} – ${resistance1} range. Hold and watch for breakout above ${resistance1}.`;
+    }
+
+    return {
+      stockId: h.stockId,
+      symbol: h.symbol,
+      nameAr: h.nameAr,
+      nameEn: h.nameEn,
+      currency: h.currency,
+      quantity: h.quantity,
+      savedBuyPrices:
+        h.buyPricesList && h.buyPricesList.length > 0
+          ? h.buyPricesList
+          : [{ price: Number(avgBuy.toFixed(2)), quantity: h.quantity, date: '-' }],
+      avgBuyPrice: Number(avgBuy.toFixed(2)),
+      currentPrice,
+      pnlAmount: Number(pnlAmount.toFixed(2)),
+      pnlPercent: Number(pnlPercent.toFixed(2)),
+      decisionType,
+      decisionTitleAr,
+      decisionTitleEn,
+      rationaleAr,
+      rationaleEn,
+      indicatorSignals: {
+        rsiStatusAr,
+        rsiStatusEn,
+        trendStatusAr,
+        trendStatusEn,
+        fairValueStatusAr,
+        fairValueStatusEn,
+      },
+      suggestedLevels: {
+        breakEvenPrice: Number(avgBuy.toFixed(2)),
+        suggestedStopLoss:
+          pnlPercent > 4
+            ? Number(Math.max(support1, avgBuy * 1.01).toFixed(2))
+            : Number(support2.toFixed(2)),
+        nextTargetPrice:
+          currentPrice < resistance1
+            ? Number(resistance1.toFixed(2))
+            : Number(Math.max(fairValue, currentPrice * 1.07).toFixed(2)),
+        accumulateZonePrice: Number(support1.toFixed(2)),
+      },
+    };
+  });
 }
 
 /**

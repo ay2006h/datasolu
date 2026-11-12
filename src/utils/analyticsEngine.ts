@@ -581,14 +581,31 @@ export const aggregateData = (
   return { labels, values };
 };
 
-export const formatCurrency = (val: number, isAr: boolean): string => {
+import { getCurrencySymbol, getSectionCurrency } from './currencyManager';
+
+export const formatCurrency = (
+  val: number,
+  isAr: boolean,
+  explicitCurrencyCode?: string
+): string => {
+  let code = explicitCurrencyCode;
+  if (!code && typeof window !== 'undefined') {
+    const mode = new URLSearchParams(window.location.search).get('mode');
+    if (mode === 'inventory') {
+      code = getSectionCurrency('inventory', 'SAR');
+    } else {
+      code = getSectionCurrency('sales', 'SAR');
+    }
+  }
+  const sym = getCurrencySymbol(code || 'SAR', isAr);
+
   if (val >= 1_000_000) {
-    return `${(val / 1_000_000).toFixed(1)} ${isAr ? 'مليون ر.س' : 'M'}`;
+    return `${(val / 1_000_000).toFixed(1)} ${isAr ? `مليون ${sym}` : `M ${sym}`}`;
   }
   if (val >= 1_000) {
-    return `${(val / 1_000).toFixed(1)} ${isAr ? 'ألف ر.س' : 'K'}`;
+    return `${(val / 1_000).toFixed(1)} ${isAr ? `ألف ${sym}` : `K ${sym}`}`;
   }
-  return `${val.toLocaleString()} ${isAr ? 'ر.س' : ''}`;
+  return `${val.toLocaleString()} ${sym}`;
 };
 
 import {

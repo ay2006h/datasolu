@@ -28,12 +28,26 @@ import {
 import {
   computePortfolioSummary,
   evaluateStockAnalyticalProfile,
+  evaluatePurchasedStocksRecommendations,
 } from '../utils/stockMarketData';
 import {
   fetchLiveStockMarketData,
   REAL_MARKET_TICKER_CATALOG,
   PopularTickerInfo,
 } from '../utils/liveStockFetcher';
+import {
+  CURRENCY_OPTIONS,
+  SupportedCurrency,
+  CashCurrencyEntry,
+  StoredFxRates,
+  getStoredFxRates,
+  fetchDailyExchangeRates,
+  convertCurrency,
+  getExchangeRate,
+  getCurrencySymbol,
+  getSectionCurrency,
+  setSectionCurrency,
+} from '../utils/currencyManager';
 import {
   TrendingUp,
   TrendingDown,
@@ -223,6 +237,60 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
     return [];
   });
 
+  // Unified Portfolio Currency (applies strictly to Total Portfolio Equity, Holdings Market Value, and Available Cash)
+  const [portfolioCurrency, setPortfolioCurrency] = useState<SupportedCurrency>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.portfolioCurrency && CURRENCY_OPTIONS.some((c) => c.code === parsed.portfolioCurrency)) {
+          return parsed.portfolioCurrency as SupportedCurrency;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return getSectionCurrency('stocks', 'SAR');
+  });
+
+  // Multi-currency cash entries for the Cash Balance Modal
+  const [cashEntries, setCashEntries] = useState<CashCurrencyEntry[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed.cashEntries) && parsed.cashEntries.length > 0) {
+          return parsed.cashEntries;
+        }
+        if (typeof parsed.cashBalance === 'number' && parsed.cashBalance > 0) {
+          return [
+            {
+              id: 'cash-init-1',
+              currency: parsed.portfolioCurrency || 'SAR',
+              amount: parsed.cashBalance,
+            },
+          ];
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  });
+
+  // Live Daily Exchange Rates state (auto-updates daily)
+  const [fxRates, setFxRates] = useState<StoredFxRates>(() => getStoredFxRates());
+  const [isRefreshingFx, setIsRefreshingFx] = useState<boolean>(false);
+
+  // Cash Balance Multi-Currency Modal state
+  const [cashModalOpen, setCashModalOpen] = useState<boolean>(false);
+  const [draftCashEntries, setDraftCashEntries] = useState<CashCurrencyEntry[]>([]);
+
+  // Market Explorer Search state (بحث واستكشاف كافة أسهم البورصة المحددة)
+  const [explorerMarketSelect, setExplorerMarketSelect] = useState<MarketRegion | 'all'>('saudi');
+  const [explorerSectorQuery, setExplorerSectorQuery] = useState<string>('');
+  const [showExchangeExplorerResults, setShowExchangeExplorerResults] = useState<boolean>(false);
+
   const [lastSavedAt, setLastSavedAt] = useState<string>('');
   const [statusBanner, setStatusBanner] = useState<string | null>(null);
   const [showFullDisclaimerModal, setShowFullDisclaimerModal] = useState<boolean>(false);
@@ -237,12 +305,117 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
   const [showCatalogModal, setShowCatalogModal] = useState<boolean>(false);
   const [historyDaysLimit, setHistoryDaysLimit] = useState<number>(15);
 
+  const showToast = useCallback((msg: string) => {
+    setStatusBanner(msg);
+    setTimeout(() => setStatusBanner(null), 4000);
+  }, []);
+
+  // Automatically fetch/refresh daily live exchange rates on mount
+  useEffect(() => {
+    let mounted = true;
+    fetchDailyExchangeRates(false).then((updated) => {
+      if (mounted) setFxRates(updated);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const handleRefreshFxRates = async () => {
+    setIsRefreshingFx(true);
+    try {
+      const updated = await fetchDailyExchangeRates(true);
+      setFxRates(updated);
+      showToast(
+        isAr
+          ? `تم تحديث أسعار الصرف اليومية حسب الوقت الحالي (${updated.lastUpdatedDate} - ${updated.lastUpdatedTime})`
+          : `Exchange rates updated (${updated.lastUpdatedDate} ${updated.lastUpdatedTime})`
+      );
+    } finally {
+      setIsRefreshingFx(false);
+    }
+  };
+
+  // Handle changing the unified portfolio currency
+  const handlePortfolioCurrencyChange = (newCurr: SupportedCurrency) => {
+    const oldCurr = portfolioCurrency;
+    if (newCurr === oldCurr) return;
+    setSectionCurrency('stocks', newCurr);
+    setPortfolioCurrency(newCurr);
+
+    // Recompute cashBalance into the newly chosen currency from cashEntries (or convert directly)
+    if (cashEntries.length > 0) {
+      const totalConverted = cashEntries.reduce(
+        (acc, entry) =>
+          acc + convertCurrency(Number(entry.amount) || 0, entry.currency, newCurr, fxRates.ratesPerUsd),
+        0
+      );
+      setCashBalance(Number(totalConverted.toFixed(2)));
+    } else if (cashBalance > 0) {
+      const converted = convertCurrency(cashBalance, oldCurr, newCurr, fxRates.ratesPerUsd);
+      setCashBalance(Number(converted.toFixed(2)));
+    }
+
+    showToast(
+      isAr
+        ? `تم توحيد عملة المحفظة والسيولة والقيمة السوقية إلى (${newCurr}) حسب سعر الصرف اليومي`
+        : `Unified portfolio equity, market value, and cash to ${newCurr}`
+    );
+  };
+
+  // Open Cash Balance Multi-Currency Modal
+  const openCashModal = () => {
+    if (cashEntries.length > 0) {
+      setDraftCashEntries(cashEntries.map((item) => ({ ...item })));
+    } else {
+      setDraftCashEntries([
+        {
+          id: `cash-${Date.now()}`,
+          currency: portfolioCurrency,
+          amount: cashBalance > 0 ? cashBalance : 0,
+        },
+      ]);
+    }
+    setCashModalOpen(true);
+  };
+
+  // Confirm & Convert Multi-Currency Cash Modal ("تم")
+  const handleConfirmCashModal = (e: React.FormEvent) => {
+    e.preventDefault();
+    const validEntries = draftCashEntries.filter((entry) => Number(entry.amount) >= 0);
+    const totalConverted = validEntries.reduce(
+      (acc, entry) =>
+        acc +
+        convertCurrency(
+          Number(entry.amount) || 0,
+          entry.currency,
+          portfolioCurrency,
+          fxRates.ratesPerUsd
+        ),
+      0
+    );
+    const roundedTotal = Number(totalConverted.toFixed(2));
+    setCashEntries(validEntries);
+    setCashBalance(roundedTotal);
+    setCashModalOpen(false);
+    showToast(
+      isAr
+        ? `تم تحويل واعتماد السيولة النقدية بالعملة المختارة: ${roundedTotal.toLocaleString()} ${getCurrencySymbol(
+            portfolioCurrency,
+            isAr
+          )}`
+        : `Cash balance converted and saved: ${roundedTotal.toLocaleString()} ${portfolioCurrency}`
+    );
+  };
+
   // Auto-save to internal localStorage whenever any state changes
   useEffect(() => {
     try {
       const payload = {
         stocks,
         cashBalance,
+        cashEntries,
+        portfolioCurrency,
         transactions,
         tradePlans,
         personalOpinions,
@@ -261,12 +434,18 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
     } catch (e) {
       console.error('Failed to save stock data locally:', e);
     }
-  }, [stocks, cashBalance, transactions, tradePlans, personalOpinions, generalJournal, scanLogs, isAr]);
-
-  const showToast = useCallback((msg: string) => {
-    setStatusBanner(msg);
-    setTimeout(() => setStatusBanner(null), 4000);
-  }, []);
+  }, [
+    stocks,
+    cashBalance,
+    cashEntries,
+    portfolioCurrency,
+    transactions,
+    tradePlans,
+    personalOpinions,
+    generalJournal,
+    scanLogs,
+    isAr,
+  ]);
 
   // =========================================================================
   // CLEAR ALL CURRENT DATA (زر مسح جميع البيانات الحالية)
@@ -274,6 +453,7 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
   const handleClearAllData = () => {
     setStocks([]);
     setCashBalance(0);
+    setCashEntries([]);
     setTransactions([]);
     setTradePlans([]);
     setPersonalOpinions([]);
@@ -472,11 +652,115 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
     [stocks, selectedStockId]
   );
 
-  // Portfolio Summary Calculation
+  // Portfolio Summary Calculation (unifies multi-currency holdings into portfolioCurrency)
   const portfolio = useMemo(
-    () => computePortfolioSummary(stocks, transactions, cashBalance),
-    [stocks, transactions, cashBalance]
+    () =>
+      computePortfolioSummary(
+        stocks,
+        transactions,
+        cashBalance,
+        portfolioCurrency,
+        fxRates.ratesPerUsd
+      ),
+    [stocks, transactions, cashBalance, portfolioCurrency, fxRates.ratesPerUsd]
   );
+
+  // Specialized recommendations & candidate decisions for purchased stocks based on saved buy prices & indicators
+  const purchasedRecommendations = useMemo(
+    () => evaluatePurchasedStocksRecommendations(portfolio.holdings, stocks),
+    [portfolio.holdings, stocks]
+  );
+
+  // Exchange Explorer Catalog filtered by selected exchange & optional keyword
+  const exchangeExplorerStocks = useMemo(() => {
+    return REAL_MARKET_TICKER_CATALOG.filter((item) => {
+      if (explorerMarketSelect !== 'all' && item.market !== explorerMarketSelect) return false;
+      if (explorerSectorQuery.trim()) {
+        const q = explorerSectorQuery.toLowerCase();
+        const match =
+          item.symbol.toLowerCase().includes(q) ||
+          item.nameAr.toLowerCase().includes(q) ||
+          item.nameEn.toLowerCase().includes(q) ||
+          item.sectorAr.toLowerCase().includes(q) ||
+          item.sectorEn.toLowerCase().includes(q);
+        if (!match) return false;
+      }
+      return true;
+    });
+  }, [explorerMarketSelect, explorerSectorQuery]);
+
+  const handleSearchExchangeStocks = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setShowExchangeExplorerResults(true);
+    setSelectedMarket(explorerMarketSelect);
+  };
+
+  // Batch scan top stocks from the currently explored exchange
+  const handleBatchScanExchange = async (itemsToScan: PopularTickerInfo[]) => {
+    if (isScanningMarket || itemsToScan.length === 0) return;
+    setIsScanningMarket(true);
+    let addedCount = 0;
+
+    for (let i = 0; i < itemsToScan.length; i++) {
+      const item = itemsToScan[i];
+      setScanningProgressText(
+        isAr
+          ? `جاري فحص وجلب أسهم البورصة المحددة (${i + 1}/${itemsToScan.length}): ${item.nameAr}...`
+          : `Scanning exchange stocks (${i + 1}/${itemsToScan.length}): ${item.symbol}...`
+      );
+      try {
+        const existing = stocks.find(
+          (s) => s.symbol.toUpperCase() === item.symbol.toUpperCase()
+        );
+        const liveStock = await fetchLiveStockMarketData(item.symbol, item.market, {
+          ...item,
+          ...existing,
+        });
+        setStocks((prev) => {
+          const idx = prev.findIndex(
+            (st) => st.symbol.toUpperCase() === liveStock.symbol.toUpperCase()
+          );
+          if (idx >= 0) {
+            const copy = [...prev];
+            copy[idx] = { ...liveStock, id: prev[idx].id };
+            return copy;
+          }
+          return [liveStock, ...prev];
+        });
+        addedCount++;
+      } catch {
+        // continue with next ticker
+      }
+    }
+
+    setIsScanningMarket(false);
+    setScanningProgressText('');
+    showToast(
+      isAr
+        ? `تم فحص وإضافة/تحديث (${addedCount}) سهم من البورصة المحددة بنجاح`
+        : `Scanned and updated ${addedCount} stocks from the selected exchange`
+    );
+  };
+
+  // Directly update saved buy price for a purchased stock
+  const handleUpdatePurchasedBuyPrice = (stockId: string, newBuyPrice: number) => {
+    if (isNaN(newBuyPrice) || newBuyPrice <= 0) return;
+    setTransactions((prev) => {
+      let updatedAny = false;
+      const next = prev.map((tx) => {
+        if (tx.stockId === stockId && tx.type === 'buy') {
+          updatedAny = true;
+          return {
+            ...tx,
+            price: newBuyPrice,
+            totalAmount: tx.quantity * newBuyPrice + (tx.commission || 0),
+          };
+        }
+        return tx;
+      });
+      return updatedAny ? next : prev;
+    });
+  };
 
   // Filtered stocks for screener
   const filteredStocks = useMemo(() => {
@@ -607,17 +891,26 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
 
     setTransactions((prev) => [newTx, ...prev]);
 
+    const totalInPortfolioCurrency = convertCurrency(
+      totalAmount,
+      targetStock.currency,
+      portfolioCurrency,
+      fxRates.ratesPerUsd
+    );
+
     if (tradeForm.type === 'buy') {
-      setCashBalance((prev) => Math.max(0, Number((prev - totalAmount).toFixed(2))));
+      setCashBalance((prev) =>
+        Math.max(0, Number((prev - totalInPortfolioCurrency).toFixed(2)))
+      );
     } else {
-      setCashBalance((prev) => Number((prev + totalAmount).toFixed(2)));
+      setCashBalance((prev) => Number((prev + totalInPortfolioCurrency).toFixed(2)));
     }
 
     setTradeModalOpen(false);
     showToast(
       isAr
-        ? `تم تسجيل عملية ${tradeForm.type === 'buy' ? 'شراء' : 'بيع'} (${tradeForm.quantity} سهم - ${targetStock.nameAr}) وحفظها داخلياً بنجاح`
-        : `Recorded ${tradeForm.type.toUpperCase()} of ${tradeForm.quantity} shares (${targetStock.symbol})`
+        ? `تم تسجيل عملية ${tradeForm.type === 'buy' ? 'شراء' : 'بيع'} (${tradeForm.quantity} سهم - ${targetStock.nameAr} بسعر ${tradeForm.price} ${targetStock.currency}) وحفظ سعر الشراء وتحديث توصيات السهم داخلياً`
+        : `Recorded ${tradeForm.type.toUpperCase()} of ${tradeForm.quantity} shares (${targetStock.symbol} at ${tradeForm.price} ${targetStock.currency})`
     );
   };
 
@@ -1773,8 +2066,69 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
           )}
         </div>
 
+        {/* UNIFIED PORTFOLIO CURRENCY & DAILY LIVE EXCHANGE RATE BAR */}
+        <div className="relative z-10 bg-slate-950/60 backdrop-blur-md p-4 rounded-2xl border border-indigo-400/30 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-400/40 text-amber-300 text-[11px] font-black">
+              {isAr ? 'تثبيت وتوحيد عملة المحفظة' : 'Unified Portfolio Currency'}
+            </span>
+            <select
+              value={portfolioCurrency}
+              onChange={(e) =>
+                handlePortfolioCurrencyChange(e.target.value as SupportedCurrency)
+              }
+              className="px-3 py-1.5 rounded-xl bg-indigo-950 border border-indigo-400/50 text-xs font-black text-white focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+            >
+              {CURRENCY_OPTIONS.map((c) => (
+                <option key={c.code} value={c.code} className="bg-slate-900 text-white">
+                  {c.flag} {isAr ? c.nameAr : c.nameEn}
+                </option>
+              ))}
+            </select>
+            <span className="text-[11px] text-slate-300 font-semibold">
+              {isAr
+                ? '(تُطبق فقط على: إجمالي قيمة المحفظة، القيمة السوقية للأسهم، والسيولة النقدية المتاحة)'
+                : '(Applies strictly to Total Equity, Holdings Market Value & Available Cash)'}
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 text-[11px]">
+            <div className="flex flex-wrap items-center gap-1.5 bg-white/5 px-3 py-1.5 rounded-xl border border-white/10 text-slate-300 font-mono">
+              {(['USD', 'SAR', 'EGP', 'AED'] as SupportedCurrency[])
+                .filter((code) => code !== portfolioCurrency)
+                .map((code) => {
+                  const rate = getExchangeRate(code, portfolioCurrency, fxRates.ratesPerUsd);
+                  return (
+                    <span key={code} className="px-1.5 py-0.5 rounded bg-white/5 text-emerald-300">
+                      1 {code} = {rate >= 1 ? rate.toFixed(2) : rate.toFixed(4)} {portfolioCurrency}
+                    </span>
+                  );
+                })}
+            </div>
+
+            <button
+              type="button"
+              onClick={handleRefreshFxRates}
+              disabled={isRefreshingFx}
+              className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-xs font-extrabold text-amber-300 flex items-center gap-1.5 transition-all"
+              title={
+                isAr
+                  ? `آخر تحديث لسعر الصرف اليومي: ${fxRates.lastUpdatedDate} (${fxRates.lastUpdatedTime})`
+                  : `Last FX update: ${fxRates.lastUpdatedDate}`
+              }
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingFx ? 'animate-spin' : ''}`} />
+              <span>
+                {isAr
+                  ? `تحديث سعر الصرف اليومي (${fxRates.lastUpdatedDate})`
+                  : `Update FX (${fxRates.lastUpdatedDate})`}
+              </span>
+            </button>
+          </div>
+        </div>
+
         {/* Quick Portfolio & Platform Summary Strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-1">
           <div className="bg-white/5 rounded-2xl p-3 border border-white/10">
             <span className="text-[11px] text-slate-400 block">
               {isAr ? 'الأسهم المسجلة داخلياً' : 'Internally Saved Stocks'}
@@ -1784,32 +2138,54 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
             </span>
           </div>
 
-          <div className="bg-white/5 rounded-2xl p-3 border border-white/10">
-            <span className="text-[11px] text-slate-400 block">
-              {isAr ? 'إجمالي قيمة المحفظة' : 'Total Portfolio Equity'}
+          <div className="bg-white/10 rounded-2xl p-3 border border-amber-400/40">
+            <span className="text-[11px] text-amber-200 font-bold block">
+              {isAr ? 'إجمالي قيمة المحفظة (موحد)' : 'Total Portfolio Equity'}
             </span>
             <span className="text-base sm:text-lg font-black text-white mt-0.5 block">
               {portfolio.totalPortfolioEquity.toLocaleString(undefined, {
-                maximumFractionDigits: 0,
-              })}
+                maximumFractionDigits: 1,
+              })}{' '}
+              <span className="text-xs text-amber-300 font-extrabold">
+                {getCurrencySymbol(portfolioCurrency, isAr)}
+              </span>
             </span>
           </div>
 
-          <div className="bg-white/5 rounded-2xl p-3 border border-white/10">
-            <span className="text-[11px] text-slate-400 block">
-              {isAr ? 'القيمة السوقية للأسهم' : 'Holdings Market Value'}
+          <div className="bg-white/10 rounded-2xl p-3 border border-indigo-400/40">
+            <span className="text-[11px] text-indigo-200 font-bold block">
+              {isAr ? 'القيمة السوقية للأسهم (موحد)' : 'Holdings Market Value'}
             </span>
             <span className="text-base sm:text-lg font-black text-indigo-300 mt-0.5 block">
-              {portfolio.totalMarketValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              {portfolio.totalMarketValue.toLocaleString(undefined, { maximumFractionDigits: 1 })}{' '}
+              <span className="text-xs text-indigo-200 font-extrabold">
+                {getCurrencySymbol(portfolioCurrency, isAr)}
+              </span>
             </span>
           </div>
 
-          <div className="bg-white/5 rounded-2xl p-3 border border-white/10">
-            <span className="text-[11px] text-slate-400 block">
-              {isAr ? 'السيولة النقدية المتاحة' : 'Available Cash'}
-            </span>
+          <div
+            onClick={openCashModal}
+            className="cursor-pointer bg-white/10 hover:bg-white/15 rounded-2xl p-3 border border-emerald-400/50 transition-all group"
+            title={
+              isAr
+                ? 'اضغط لفتح نافذة إدخال السيولة النقدية بأي عملة وتحويلها للعملة المختارة'
+                : 'Click to enter cash balance in any currency'
+            }
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-emerald-200 font-bold block">
+                {isAr ? 'السيولة النقدية المتاحة' : 'Available Cash'}
+              </span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500 text-slate-950 font-black group-hover:scale-105 transition-transform">
+                {isAr ? 'إدخال / عملات' : 'Set Cash'}
+              </span>
+            </div>
             <span className="text-base sm:text-lg font-black text-amber-300 mt-0.5 block">
-              {cashBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              {cashBalance.toLocaleString(undefined, { maximumFractionDigits: 1 })}{' '}
+              <span className="text-xs text-amber-200 font-extrabold">
+                {getCurrencySymbol(portfolioCurrency, isAr)}
+              </span>
             </span>
           </div>
 
@@ -1832,11 +2208,11 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
 
           <div className="bg-white/5 rounded-2xl p-3 border border-white/10">
             <span className="text-[11px] text-slate-400 block">
-              {isAr ? 'الخطط والآراء المحفوظة' : 'Saved Plans & Notes'}
+              {isAr ? 'الأسهم المشتراة / الخطط' : 'Purchased / Plans'}
             </span>
             <span className="text-base sm:text-lg font-black text-sky-300 mt-0.5 block">
-              {tradePlans.length} {isAr ? 'خطط' : 'Plans'} / {personalOpinions.length}{' '}
-              {isAr ? 'آراء' : 'Notes'}
+              {purchasedRecommendations.length} {isAr ? 'مشتراة' : 'Owned'} / {tradePlans.length}{' '}
+              {isAr ? 'خطط' : 'Plans'}
             </span>
           </div>
         </div>
@@ -1851,8 +2227,8 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
             id: 'stocks_overview',
             icon: Award,
             label: isAr
-              ? `1. فحص الأسهم وترشيحات المفضلة (${stocks.length})`
-              : `1. Stock Scanner & Featured Picks (${stocks.length})`,
+              ? `1. الاستكشاف وفحص الأسهم (${stocks.length})`
+              : `1. Explorer & Stock Scanner (${stocks.length})`,
           },
           {
             id: 'stocks_portfolio',
@@ -1862,18 +2238,25 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
               : `2. Portfolio & Buy/Sell (${portfolio.holdings.length})`,
           },
           {
+            id: 'stocks_purchased',
+            icon: Sparkles,
+            label: isAr
+              ? `3. توصيات الأسهم المشتراة والقرار المرشح (${purchasedRecommendations.length})`
+              : `3. Purchased Stocks Decisions (${purchasedRecommendations.length})`,
+          },
+          {
             id: 'stocks_plans',
             icon: Compass,
             label: isAr
-              ? `3. الخطط المحتملة والسيناريوهات (${tradePlans.length})`
-              : `3. Trade Plans & Scenarios (${tradePlans.length})`,
+              ? `4. الخطط المحتملة والسيناريوهات (${tradePlans.length})`
+              : `4. Trade Plans & Scenarios (${tradePlans.length})`,
           },
           {
             id: 'stocks_opinions',
             icon: MessageSquare,
             label: isAr
-              ? `4. الرأي الشخصي والرؤى (${personalOpinions.length})`
-              : `4. Personal Opinions & Visions (${personalOpinions.length})`,
+              ? `5. الرأي الشخصي والرؤى (${personalOpinions.length})`
+              : `5. Personal Opinions & Visions (${personalOpinions.length})`,
           },
         ].map((tab) => {
           const IconComponent = tab.icon;
@@ -1896,10 +2279,203 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
       </div>
 
       {/* =====================================================================
-          TAB 1: LIVE STOCK SCANNER, SITE FEATURED PICKS & SCREENER
+          TAB 1: LIVE STOCK SCANNER, EXCHANGE EXPLORER, SITE FEATURED PICKS & SCREENER
          ===================================================================== */}
       {currentTab === 'stocks_overview' && (
         <div className="space-y-8">
+          {/* EXCHANGE EXPLORER SEARCH BAR (خيار بحث في صفحة الاستكشاف حسب البورصة المحددة لعرض كافة أسهمها) */}
+          <div className="rounded-3xl bg-white dark:bg-slate-800/95 border-2 border-indigo-500/40 p-5 sm:p-6 shadow-md space-y-5">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-xs font-black">
+                  <Search className="w-3.5 h-3.5" />
+                  <span>
+                    {isAr
+                      ? 'محرك بحث واستكشاف أسهم البورصات'
+                      : 'Market Exchange Stock Explorer'}
+                  </span>
+                </div>
+                <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white">
+                  {isAr
+                    ? 'حدد البورصة المطلوبة واضغط «بحث» لعرض وفحص كافة الأسهم المدرجة فيها'
+                    : 'Select a Stock Exchange and Click Search to View All Stocks in That Market'}
+                </h2>
+              </div>
+
+              <form
+                onSubmit={handleSearchExchangeStocks}
+                className="flex flex-wrap items-center gap-2.5"
+              >
+                <select
+                  value={explorerMarketSelect}
+                  onChange={(e) =>
+                    setExplorerMarketSelect(e.target.value as MarketRegion | 'all')
+                  }
+                  className="px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border-2 border-indigo-200 dark:border-slate-700 text-xs sm:text-sm font-black text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="saudi">
+                    {isAr ? '🇸🇦 السوق السعودي (تداول - Tadawul)' : '🇸🇦 Saudi Exchange (Tadawul)'}
+                  </option>
+                  <option value="egypt">
+                    {isAr ? '🇪🇬 البورصة المصرية (EGX)' : '🇪🇬 Egyptian Exchange (EGX)'}
+                  </option>
+                  <option value="us">
+                    {isAr ? '🇺🇸 السوق الأمريكي (US Wall Street)' : '🇺🇸 US Market (Wall Street)'}
+                  </option>
+                  <option value="uae">
+                    {isAr ? '🇦🇪 سوق الإمارات المالي (DFM / ADX)' : '🇦🇪 UAE Market (DFM / ADX)'}
+                  </option>
+                  <option value="all">
+                    {isAr ? '🌍 جميع البورصات العالمية والعربية' : '🌍 All Exchanges'}
+                  </option>
+                </select>
+
+                <input
+                  type="text"
+                  value={explorerSectorQuery}
+                  onChange={(e) => setExplorerSectorQuery(e.target.value)}
+                  placeholder={
+                    isAr
+                      ? 'تصفية اختيارية (اسم السهم أو القطاع)...'
+                      : 'Optional filter (name or sector)...'
+                  }
+                  className="px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-white w-48 sm:w-56"
+                />
+
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-black shadow-md shadow-indigo-600/20 flex items-center gap-2 transition-all"
+                >
+                  <Search className="w-4 h-4" />
+                  <span>{isAr ? 'بحث وعرض أسهم البورصة' : 'Search Exchange Stocks'}</span>
+                </button>
+
+                {showExchangeExplorerResults && (
+                  <button
+                    type="button"
+                    onClick={() => setShowExchangeExplorerResults(false)}
+                    className="px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold"
+                  >
+                    {isAr ? 'إخفاء القائمة' : 'Hide'}
+                  </button>
+                )}
+              </form>
+            </div>
+
+            {/* EXCHANGE EXPLORER RESULTS PANEL */}
+            {showExchangeExplorerResults && (
+              <div className="pt-4 border-t border-slate-100 dark:border-slate-700/80 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-1 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-xs font-black">
+                      {isAr
+                        ? `تم العثور على (${exchangeExplorerStocks.length}) سهماً في البورصة المحددة`
+                        : `Found ${exchangeExplorerStocks.length} stocks in selected exchange`}
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      {isAr
+                        ? 'اضغط على أي سهم لفحص سعره الفعلي وجلب بياناته، أو افحص المجموعة دفعة واحدة:'
+                        : 'Click any stock to scan its live price and history:'}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={isScanningMarket || exchangeExplorerStocks.length === 0}
+                    onClick={() => handleBatchScanExchange(exchangeExplorerStocks)}
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-black flex items-center gap-1.5 shadow-sm"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isScanningMarket ? 'animate-spin' : ''}`} />
+                    <span>
+                      {isAr
+                        ? `فحص وجلب الأسعار الحية لكافة أسهم هذه البورصة (${exchangeExplorerStocks.length})`
+                        : `Scan All ${exchangeExplorerStocks.length} Stocks Live`}
+                    </span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-96 overflow-y-auto p-1">
+                  {exchangeExplorerStocks.map((item) => {
+                    const scannedStock = stocks.find(
+                      (s) => s.symbol.toUpperCase() === item.symbol.toUpperCase()
+                    );
+                    return (
+                      <div
+                        key={item.symbol}
+                        className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between gap-2.5 ${
+                          scannedStock
+                            ? 'bg-emerald-50/60 dark:bg-emerald-950/30 border-emerald-400/70'
+                            : 'bg-slate-50 dark:bg-slate-900/70 border-slate-200 dark:border-slate-700 hover:border-indigo-400'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="px-2 py-0.5 rounded bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-mono text-[11px] font-black">
+                              {item.symbol}
+                            </span>
+                            <span className="text-[10px] font-bold text-slate-400">
+                              {item.currency} • {item.sectorAr}
+                            </span>
+                          </div>
+                          <div className="text-xs sm:text-sm font-black text-slate-900 dark:text-white mt-1.5">
+                            {isAr ? item.nameAr : item.nameEn}
+                          </div>
+                          {scannedStock && (
+                            <div className="mt-1.5 flex items-center justify-between text-xs">
+                              <span className="font-black text-indigo-600 dark:text-indigo-400">
+                                {scannedStock.currentPrice} {scannedStock.currency}
+                              </span>
+                              <span
+                                className={`font-bold text-[11px] ${
+                                  scannedStock.changePercent >= 0
+                                    ? 'text-emerald-600'
+                                    : 'text-rose-600'
+                                }`}
+                              >
+                                {scannedStock.changePercent >= 0 ? '+' : ''}
+                                {scannedStock.changePercent}%
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1.5 pt-1 border-t border-slate-200/60 dark:border-slate-800">
+                          <button
+                            type="button"
+                            disabled={isScanningMarket}
+                            onClick={() =>
+                              handleFetchSingleLiveStock(item.symbol, item.market, item)
+                            }
+                            className="flex-1 py-1.5 px-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-black flex items-center justify-center gap-1"
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                            <span>
+                              {scannedStock
+                                ? isAr
+                                  ? 'تحديث السعر'
+                                  : 'Update'
+                                : isAr
+                                ? 'فحص وإضافة'
+                                : 'Scan & Add'}
+                            </span>
+                          </button>
+                          {scannedStock && (
+                            <button
+                              type="button"
+                              onClick={() => openTradeModal(scannedStock, 'buy')}
+                              className="py-1.5 px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black"
+                            >
+                              {isAr ? 'شراء' : 'Buy'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
           {/* EMPTY STATE WHEN NO STOCKS ENTERED YET (يبدأ فارغاً بدون بيانات محاكاة) */}
           {stocks.length === 0 ? (
             <div className="rounded-3xl bg-white dark:bg-slate-800/90 border-2 border-dashed border-indigo-400/60 dark:border-indigo-500/40 p-8 sm:p-12 text-center space-y-6 shadow-sm">
@@ -2947,22 +3523,44 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                   <Wallet className="w-5 h-5 text-amber-500" />
                 </div>
                 <div className="text-2xl font-black text-slate-900 dark:text-white mt-2">
-                  {cashBalance.toLocaleString()}
+                  {cashBalance.toLocaleString(undefined, { maximumFractionDigits: 1 })}{' '}
+                  <span className="text-xs font-bold text-amber-600 dark:text-amber-400">
+                    {getCurrencySymbol(portfolioCurrency, isAr)}
+                  </span>
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1">
                   {isAr
-                    ? 'تُحفظ السيولة والصفقات داخلياً في متصفحك فقط. أدخل رصيد السيولة النقدية المتاحة:'
-                    : 'Saved strictly inside your browser. Adjust available cash balance:'}
+                    ? 'افتح الشاشة المنبثقة لإدخال أرصدتك النقدية بأي عملة وسيتم تحويلها تلقائياً للعملة الموحدة المختارة:'
+                    : 'Open the modal to enter cash balances in any currency and convert them automatically:'}
                 </p>
+
+                {cashEntries.length > 0 && (
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    {cashEntries.map((entry) => (
+                      <span
+                        key={entry.id}
+                        className="px-2 py-0.5 rounded-lg bg-amber-50 dark:bg-amber-950/50 border border-amber-200/70 dark:border-amber-800/60 text-[10px] font-bold text-amber-800 dark:text-amber-300"
+                      >
+                        {entry.amount.toLocaleString()} {entry.currency}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              <div className="flex items-center gap-2 pt-2">
-                <input
-                  type="number"
-                  value={cashBalance}
-                  onChange={(e) => setCashBalance(Math.max(0, Number(e.target.value)))}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm font-black text-slate-900 dark:text-white"
-                />
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={openCashModal}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black shadow-sm transition-all flex items-center justify-center gap-1.5"
+                >
+                  <Wallet className="w-4 h-4" />
+                  <span>
+                    {isAr
+                      ? 'إدخال السيولة النقدية بالعملات (شاشة منبثقة)'
+                      : 'Enter Multi-Currency Cash (Modal)'}
+                  </span>
+                </button>
                 {stocks.length > 0 && (
                   <button
                     onClick={() => openTradeModal(stocks[0], 'buy')}
@@ -2981,15 +3579,23 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                     ? 'توزيع الأصول والأسهم المملوكة في المحفظة'
                     : 'Portfolio Asset & Stock Allocation'}
                 </h3>
+                <p className="text-[11px] text-slate-500">
+                  {isAr
+                    ? `يتم احتساب القيمة السوقية للأسهم وإجمالي المحفظة والسيولة بعملة المحفظة الموحدة (${getCurrencySymbol(portfolioCurrency, true)}) مع احتفاظ كل سهم بعملة بورصته الأصلية في جدول التتبع.`
+                    : `Holdings market value, total portfolio, and cash are unified in ${portfolioCurrency}, while individual stocks keep their native currency.`}
+                </p>
                 <div className="grid grid-cols-2 gap-3 pt-2">
                   <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
                     <span className="text-[10px] text-slate-400 block">
-                      {isAr ? 'إجمالي تكلفة الشراء' : 'Total Cost Basis'}
+                      {isAr ? 'إجمالي تكلفة الشراء (موحد)' : 'Total Cost Basis'}
                     </span>
                     <span className="text-sm font-black text-slate-800 dark:text-white">
                       {portfolio.totalInvestedCost.toLocaleString(undefined, {
                         maximumFractionDigits: 0,
-                      })}
+                      })}{' '}
+                      <span className="text-[10px] text-slate-400">
+                        {getCurrencySymbol(portfolioCurrency, isAr)}
+                      </span>
                     </span>
                   </div>
                   <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
@@ -3002,7 +3608,10 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                       }`}
                     >
                       {portfolio.totalRealizedPnL >= 0 ? '+' : ''}
-                      {portfolio.totalRealizedPnL.toFixed(1)}
+                      {portfolio.totalRealizedPnL.toFixed(1)}{' '}
+                      <span className="text-[10px]">
+                        {getCurrencySymbol(portfolioCurrency, isAr)}
+                      </span>
                     </span>
                   </div>
                 </div>
@@ -3019,7 +3628,9 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                       datasets: [
                         {
                           data: [
-                            ...portfolio.holdings.map((h) => Number(h.marketValue.toFixed(0))),
+                            ...portfolio.holdings.map((h) =>
+                              Number((h.marketValueUnified ?? h.marketValue).toFixed(0))
+                            ),
                             Number(cashBalance.toFixed(0)),
                           ],
                           backgroundColor: [
@@ -3049,25 +3660,46 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
 
           <div className="rounded-3xl bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 shadow-md overflow-hidden">
             <div className="p-5 border-b border-slate-100 dark:border-slate-700/70 flex flex-wrap items-center justify-between gap-3">
-              <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
-                {isAr
-                  ? 'تتبع الأسهم المملوكة حالياً بالمحفظة (حساب تلقائي لمتوسط التكلفة والأرباح)'
-                  : 'Active Portfolio Holdings & Live P&L Tracker'}
-              </h3>
-              {stocks.length > 0 && (
+              <div>
+                <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                  {isAr
+                    ? 'تتبع الأسهم المملوكة حالياً بالمحفظة (حساب تلقائي بعملة البورصة الأصلية لكل سهم)'
+                    : 'Active Portfolio Holdings & Live P&L Tracker (Native Stock Currency)'}
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  {isAr
+                    ? 'تظل أسعار كل سهم بعملة سوقه الأصلية، بينما يتم توحيد القيمة السوقية الإجمالية في البطاقة العلوية حسب سعر الصرف اليومي.'
+                    : 'Individual stock prices remain in their native market currency.'}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
                 <button
-                  onClick={handleScanAllStocksLive}
-                  disabled={isScanningMarket}
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black flex items-center gap-1.5 shadow-sm"
+                  type="button"
+                  onClick={() => handleTabSwitch('stocks_purchased')}
+                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black flex items-center gap-1.5 shadow-sm"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isScanningMarket ? 'animate-spin' : ''}`} />
+                  <Sparkles className="w-3.5 h-3.5" />
                   <span>
                     {isAr
-                      ? 'فحص وتحديث أسعار أسهم المحفظة الفعلية الآن'
-                      : 'Scan & Update Portfolio Prices Now'}
+                      ? `توصيات الأسهم المشتراة (${purchasedRecommendations.length})`
+                      : `Purchased Stocks Recommendations (${purchasedRecommendations.length})`}
                   </span>
                 </button>
-              )}
+                {stocks.length > 0 && (
+                  <button
+                    onClick={handleScanAllStocksLive}
+                    disabled={isScanningMarket}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black flex items-center gap-1.5 shadow-sm"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isScanningMarket ? 'animate-spin' : ''}`} />
+                    <span>
+                      {isAr
+                        ? 'فحص وتحديث أسعار أسهم المحفظة الفعلية الآن'
+                        : 'Scan & Update Portfolio Prices Now'}
+                    </span>
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="overflow-x-auto">
@@ -3086,7 +3718,7 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                       {isAr ? 'السعر الحالي' : 'Current Price'}
                     </th>
                     <th className="py-3.5 px-3 text-center">
-                      {isAr ? 'القيمة السوقية' : 'Market Value'}
+                      {isAr ? 'القيمة السوقية (بعملة السهم)' : 'Market Value'}
                     </th>
                     <th className="py-3.5 px-3 text-center">
                       {isAr ? 'صافي الربح / الخسارة' : 'Unrealized P&L'}
@@ -3123,7 +3755,8 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                             {h.avgCostPrice.toFixed(2)} {h.currency}
                           </td>
                           <td className="py-3.5 px-3 text-center font-bold">
-                            {h.totalCost.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                            {h.totalCost.toLocaleString(undefined, { maximumFractionDigits: 1 })}{' '}
+                            <span className="text-[10px] text-slate-400">{h.currency}</span>
                           </td>
                           <td className="py-3.5 px-3 text-center">
                             <input
@@ -3137,7 +3770,12 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                             />
                           </td>
                           <td className="py-3.5 px-3 text-center font-black">
-                            {h.marketValue.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                            <div>
+                              {h.marketValue.toLocaleString(undefined, {
+                                maximumFractionDigits: 1,
+                              })}{' '}
+                              <span className="text-[10px] text-slate-400">{h.currency}</span>
+                            </div>
                           </td>
                           <td className="py-3.5 px-3 text-center">
                             <span
@@ -3248,6 +3886,349 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                   </tbody>
                 </table>
               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* =====================================================================
+          TAB 2.5: PURCHASED STOCKS RECOMMENDATIONS & SAVED BUY PRICES ENGINE
+         ===================================================================== */}
+      {currentTab === 'stocks_purchased' && (
+        <div className="space-y-6">
+          <div className="rounded-3xl bg-gradient-to-l from-indigo-950 via-slate-900 to-emerald-950 text-white p-6 sm:p-7 shadow-xl border border-emerald-500/30">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="space-y-1.5">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-black">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>
+                    {isAr
+                      ? 'محرك القرار المرشح للأسهم التي تم شراؤها بناءً على المؤشرات وأسعار الشراء المحفوظة'
+                      : 'Purchased Stocks Indicator Decision Engine & Saved Buy Prices'}
+                  </span>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-black">
+                  {isAr
+                    ? 'توصيات الأسهم المشتراة والقرار المرشح من حيث المؤشرات الفنية والأساسية'
+                    : 'Purchased Stocks Recommendations & Candidate Indicator Decisions'}
+                </h2>
+                <p className="text-xs text-slate-300 max-w-3xl leading-relaxed">
+                  {isAr
+                    ? 'يحتفظ هذا القسم بجميع أسعار الشراء التي تمت بها صفقاتك داخلياً، ويقارنها لحظياً بالسعر الفعلي، مؤشر القوة النسبية (RSI)، المتوسطات المتحركة (MA50/200)، ومناطق الدعم والمقاومة والقيمة العادلة ليقدم لك القرار الاسترشادي المرشح لكل سهم تم شراؤه.'
+                    : 'Saves your purchase prices locally and compares them against live price, RSI, MA50/200, Support/Resistance, and Fair Value to output a candidate indicator decision.'}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5">
+                {stocks.length > 0 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => openTradeModal(stocks[0], 'buy')}
+                      className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black flex items-center gap-1.5 shadow-md"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>{isAr ? '+ تسجيل شراء سهم جديد' : '+ Record Stock Purchase'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleScanAllStocksLive}
+                      disabled={isScanningMarket}
+                      className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black flex items-center gap-1.5 shadow-md"
+                    >
+                      <RefreshCw
+                        className={`w-4 h-4 ${isScanningMarket ? 'animate-spin' : ''}`}
+                      />
+                      <span>
+                        {isAr
+                          ? 'فحص وتحديث المؤشرات والأسعار الآن'
+                          : 'Scan & Update Indicators Now'}
+                      </span>
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {purchasedRecommendations.length === 0 ? (
+            <div className="rounded-3xl bg-white dark:bg-slate-800/90 border-2 border-dashed border-slate-300 dark:border-slate-700 p-10 text-center space-y-4">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
+                <Wallet className="w-7 h-7" />
+              </div>
+              <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                {isAr
+                  ? 'لا توجد أسهم مشتراة مسجلة حالياً في محفظتك'
+                  : 'No Purchased Stocks Recorded Yet'}
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-lg mx-auto leading-relaxed">
+                {isAr
+                  ? 'قم أولاً باستكشاف أو فحص السهم من تبويب (الاستكشاف والفحص)، ثم اضغط على زر (شراء / بيع) لتسجيل سعر الشراء والكمية، وستظهر هنا فوراً التوصيات الخاصة والقرار المرشح من حيث المؤشرات.'
+                  : 'Scan or explore a stock first, then record a Buy transaction to see tailored indicator recommendations here.'}
+              </p>
+              <div className="flex justify-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => handleTabSwitch('stocks_overview')}
+                  className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black shadow-sm"
+                >
+                  {isAr ? 'الانتقال إلى استكشاف وفحص الأسهم' : 'Go to Stock Explorer'}
+                </button>
+                {stocks.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => openTradeModal(stocks[0], 'buy')}
+                    className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-sm"
+                  >
+                    {isAr ? '+ تسجيل عملية شراء الآن' : '+ Record Buy Trade Now'}
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-6">
+              {purchasedRecommendations.map((rec) => {
+                const stObj = stocks.find((s) => s.id === rec.stockId);
+                const badgePalette =
+                  rec.decisionType === 'accumulate_support'
+                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40'
+                    : rec.decisionType === 'hold_trail_stop'
+                    ? 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/40'
+                    : rec.decisionType === 'partial_profit'
+                    ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40'
+                    : rec.decisionType === 'hold_watch_bounce'
+                    ? 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border-cyan-500/40'
+                    : 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/40';
+
+                return (
+                  <div
+                    key={rec.stockId}
+                    className="rounded-3xl bg-white dark:bg-slate-800/95 border-2 border-slate-200/90 dark:border-slate-700/80 p-6 shadow-md space-y-5"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 dark:border-slate-700/70 pb-4">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="px-2.5 py-0.5 rounded-lg bg-slate-900 dark:bg-slate-700 text-white font-mono text-xs font-black">
+                            {rec.symbol}
+                          </span>
+                          <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                            {isAr ? rec.nameAr : rec.nameEn}
+                          </h3>
+                          <span className="px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-300 text-[11px] font-bold">
+                            {isAr ? `الكمية المملوكة: ${rec.quantity}` : `Qty: ${rec.quantity}`}
+                          </span>
+                        </div>
+
+                        {/* Saved Buy Prices List */}
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span className="text-[11px] font-extrabold text-slate-500 dark:text-slate-400">
+                            {isAr
+                              ? 'أسعار الشراء المحفوظة للصفقات:'
+                              : 'Saved Purchase Lot Prices:'}
+                          </span>
+                          {rec.savedBuyPrices.map((lot, idx) => (
+                            <span
+                              key={idx}
+                              className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-[11px] font-black text-indigo-700 dark:text-indigo-300"
+                            >
+                              #{idx + 1}: {lot.price.toFixed(2)} {rec.currency} ({lot.quantity})
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Candidate Decision Badge */}
+                      <div className="flex flex-col items-end gap-2">
+                        <div
+                          className={`px-4 py-2 rounded-2xl border-2 text-xs sm:text-sm font-black flex items-center gap-2 ${badgePalette}`}
+                        >
+                          <Sparkles className="w-4 h-4" />
+                          <span>
+                            {isAr
+                              ? `القرار المرشح: ${rec.decisionTitleAr}`
+                              : `Candidate Decision: ${rec.decisionTitleEn}`}
+                          </span>
+                        </div>
+                        {stObj && (
+                          <span className="text-[11px] font-extrabold text-slate-500">
+                            {isAr
+                              ? `درجة قوة المؤشرات الفنية: ${stObj.siteAnalyticalScore}/100`
+                              : `Indicator Strength Score: ${stObj.siteAnalyticalScore}/100`}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Price Comparison & Editable Saved Buy Price */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/90 border border-slate-200/70 dark:border-slate-700/70">
+                        <span className="text-[11px] font-bold text-slate-500 block">
+                          {isAr
+                            ? 'متوسط سعر الشراء المحفوظ (قابل للتعديل)'
+                            : 'Saved Avg Buy Price (Editable)'}
+                        </span>
+                        <div className="mt-1.5 flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={Number(rec.avgBuyPrice.toFixed(2))}
+                            onChange={(e) =>
+                              handleUpdatePurchasedBuyPrice(
+                                rec.stockId,
+                                parseFloat(e.target.value)
+                              )
+                            }
+                            className="w-28 px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 border border-indigo-300 dark:border-indigo-700 text-sm font-black text-indigo-600 dark:text-indigo-300"
+                          />
+                          <span className="text-xs font-bold text-slate-500">{rec.currency}</span>
+                        </div>
+                      </div>
+
+                      <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/90 border border-slate-200/70 dark:border-slate-700/70">
+                        <span className="text-[11px] font-bold text-slate-500 block">
+                          {isAr ? 'السعر السوقي الحالي' : 'Current Market Price'}
+                        </span>
+                        <div className="text-lg font-black text-slate-900 dark:text-white mt-1">
+                          {rec.currentPrice.toFixed(2)}{' '}
+                          <span className="text-xs font-bold text-slate-400">{rec.currency}</span>
+                        </div>
+                      </div>
+
+                      <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/90 border border-slate-200/70 dark:border-slate-700/70">
+                        <span className="text-[11px] font-bold text-slate-500 block">
+                          {isAr ? 'نسبة الربح / الخسارة عن سعر الشراء' : 'P&L vs Buy Price'}
+                        </span>
+                        <div
+                          className={`text-lg font-black mt-1 ${
+                            rec.pnlPercent >= 0 ? 'text-emerald-600' : 'text-rose-600'
+                          }`}
+                        >
+                          {rec.pnlPercent >= 0 ? '+' : ''}
+                          {rec.pnlPercent.toFixed(2)}% ({rec.pnlAmount >= 0 ? '+' : ''}
+                          {rec.pnlAmount.toFixed(1)} {rec.currency})
+                        </div>
+                      </div>
+
+                      <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/90 border border-slate-200/70 dark:border-slate-700/70 flex flex-col justify-between">
+                        <span className="text-[11px] font-bold text-slate-500 block">
+                          {isAr ? 'إجراءات السهم السريعة' : 'Quick Actions'}
+                        </span>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          {stObj && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleFetchSingleLiveStock(stObj.symbol, stObj.market)
+                                }
+                                disabled={isScanningMarket}
+                                className="px-2.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-black flex items-center gap-1"
+                              >
+                                <RefreshCw className="w-3 h-3" />
+                                <span>{isAr ? 'تحديث السعر' : 'Refresh'}</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openTradeModal(stObj, 'buy')}
+                                className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black"
+                              >
+                                {isAr ? '+ تعزيز' : '+ Buy'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openTradeModal(stObj, 'sell')}
+                                className="px-2.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-black"
+                              >
+                                {isAr ? 'بيع' : 'Sell'}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Detailed Rationale from Indicators */}
+                    <div className="p-4 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200/70 dark:border-indigo-800/60 space-y-2">
+                      <div className="text-xs font-black text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
+                        <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                        <span>
+                          {isAr
+                            ? 'تفسير القرار المرشح من حيث المؤشرات الفنية والأساسية:'
+                            : 'Candidate Decision Rationale Based on Indicators:'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                        {isAr ? rec.rationaleAr : rec.rationaleEn}
+                      </p>
+                    </div>
+
+                    {/* 3 Indicator Badges + 4 Action Price Levels */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800">
+                        <span className="text-[10px] font-bold text-slate-400 block">
+                          {isAr ? 'حالة مؤشر الزخم (RSI 14)' : 'Momentum (RSI 14)'}
+                        </span>
+                        <span className="font-black text-slate-800 dark:text-slate-200 mt-0.5 block">
+                          {isAr ? rec.indicatorSignals.rsiStatusAr : rec.indicatorSignals.rsiStatusEn}
+                        </span>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800">
+                        <span className="text-[10px] font-bold text-slate-400 block">
+                          {isAr ? 'حالة المتوسطات المتحركة (MA50 / MA200)' : 'Moving Averages'}
+                        </span>
+                        <span className="font-black text-slate-800 dark:text-slate-200 mt-0.5 block">
+                          {isAr ? rec.indicatorSignals.trendStatusAr : rec.indicatorSignals.trendStatusEn}
+                        </span>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800">
+                        <span className="text-[10px] font-bold text-slate-400 block">
+                          {isAr ? 'تقييم القيمة العادلة' : 'Fair Value Assessment'}
+                        </span>
+                        <span className="font-black text-slate-800 dark:text-slate-200 mt-0.5 block">
+                          {isAr
+                            ? rec.indicatorSignals.fairValueStatusAr
+                            : rec.indicatorSignals.fairValueStatusEn}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+                      <div className="p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-800/50 text-center">
+                        <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 block">
+                          {isAr ? 'منطقة التعزيز المقترحة (الدعم)' : 'Suggested Accumulate Zone'}
+                        </span>
+                        <span className="text-sm font-black text-emerald-800 dark:text-emerald-200">
+                          {rec.suggestedLevels.accumulateZonePrice} {rec.currency}
+                        </span>
+                      </div>
+                      <div className="p-3 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-800/50 text-center">
+                        <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 block">
+                          {isAr ? 'نقطة التعادل (سعر الشراء)' : 'Break-Even Buy Price'}
+                        </span>
+                        <span className="text-sm font-black text-indigo-800 dark:text-indigo-200">
+                          {rec.suggestedLevels.breakEvenPrice} {rec.currency}
+                        </span>
+                      </div>
+                      <div className="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/50 text-center">
+                        <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 block">
+                          {isAr ? 'الهدف القادم لجني الأرباح' : 'Next Target Price'}
+                        </span>
+                        <span className="text-sm font-black text-amber-800 dark:text-amber-200">
+                          {rec.suggestedLevels.nextTargetPrice} {rec.currency}
+                        </span>
+                      </div>
+                      <div className="p-3 rounded-xl bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200/60 dark:border-rose-800/50 text-center">
+                        <span className="text-[10px] font-bold text-rose-700 dark:text-rose-300 block">
+                          {isAr ? 'وقف حماية رأس المال / الربح' : 'Suggested Stop Loss'}
+                        </span>
+                        <span className="text-sm font-black text-rose-800 dark:text-rose-200">
+                          {rec.suggestedLevels.suggestedStopLoss} {rec.currency}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -4187,6 +5168,217 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                 className="px-6 py-2.5 rounded-xl bg-amber-500 text-slate-950 text-xs sm:text-sm font-black"
               >
                 {isAr ? 'قرأت وفهمت' : 'I Understand'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          MODAL 6: MULTI-CURRENCY PORTFOLIO CASH BALANCE MODAL
+         ===================================================================== */}
+      {cashModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-2xl border-2 border-amber-500/60 space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black">
+                  <Wallet className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                    {isAr
+                      ? 'إدخال السيولة النقدية المتاحة بالمحفظة وتوحيد العملات'
+                      : 'Multi-Currency Portfolio Cash Balance Entry'}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    {isAr
+                      ? `أضف خانة لكل عملة واكتب الرصيد المتاح بها، وعند ضغط (تم) سيتم تحويل الرصيد إلى العملة المختارة (${getCurrencySymbol(portfolioCurrency, true)}) حسب سعر الصرف اليومي.`
+                      : `Add rows for each currency balance; clicking Done converts everything into ${portfolioCurrency}.`}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCashModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+              {draftCashEntries.map((entry, idx) => {
+                const convertedPreview = convertCurrency(
+                  Number(entry.amount) || 0,
+                  entry.currency,
+                  portfolioCurrency,
+                  fxRates.ratesPerUsd
+                );
+                const rateVal = getExchangeRate(
+                  entry.currency,
+                  portfolioCurrency,
+                  fxRates.ratesPerUsd
+                );
+
+                return (
+                  <div
+                    key={entry.id}
+                    className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700/80 space-y-2"
+                  >
+                    <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
+                      <span>
+                        {isAr ? `خانة عملة نقدية #${idx + 1}` : `Currency Balance #${idx + 1}`}
+                      </span>
+                      {draftCashEntries.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDraftCashEntries((prev) =>
+                              prev.filter((item) => item.id !== entry.id)
+                            )
+                          }
+                          className="text-rose-500 hover:text-rose-600 flex items-center gap-1 font-black"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>{isAr ? 'حذف الخانة' : 'Remove'}</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center">
+                      <div className="sm:col-span-5">
+                        <label className="block text-[10px] font-bold text-slate-400 mb-1">
+                          {isAr ? 'العملة المحددة' : 'Currency'}
+                        </label>
+                        <select
+                          value={entry.currency}
+                          onChange={(e) =>
+                            setDraftCashEntries((prev) =>
+                              prev.map((item) =>
+                                item.id === entry.id
+                                  ? { ...item, currency: e.target.value as SupportedCurrency }
+                                  : item
+                              )
+                            )
+                          }
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-black text-slate-900 dark:text-white"
+                        >
+                          {CURRENCY_OPTIONS.map((c) => (
+                            <option key={c.code} value={c.code}>
+                              {isAr ? `${c.nameAr} (${c.code})` : `${c.nameEn} (${c.code})`}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="sm:col-span-4">
+                        <label className="block text-[10px] font-bold text-slate-400 mb-1">
+                          {isAr ? 'الرصيد من تلك العملة' : 'Balance Amount'}
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={entry.amount}
+                          onChange={(e) =>
+                            setDraftCashEntries((prev) =>
+                              prev.map((item) =>
+                                item.id === entry.id
+                                  ? { ...item, amount: Math.max(0, Number(e.target.value)) }
+                                  : item
+                              )
+                            )
+                          }
+                          placeholder="0.00"
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-black text-slate-900 dark:text-white"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-3 p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center">
+                        <span className="block text-[9px] text-amber-700 dark:text-amber-300 font-bold">
+                          {isAr ? 'المعادل بالعملة المختارة' : 'Converted'}
+                        </span>
+                        <span className="text-xs font-black text-amber-800 dark:text-amber-200">
+                          {convertedPreview.toLocaleString(undefined, {
+                            maximumFractionDigits: 1,
+                          })}{' '}
+                          {getCurrencySymbol(portfolioCurrency, isAr)}
+                        </span>
+                        {entry.currency !== portfolioCurrency && (
+                          <span className="block text-[9px] text-slate-400">
+                            1 {entry.currency} = {rateVal.toFixed(3)} {portfolioCurrency}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() =>
+                  setDraftCashEntries((prev) => [
+                    ...prev,
+                    {
+                      id: `cash-${Date.now()}-${prev.length + 1}`,
+                      currency: 'USD',
+                      amount: 0,
+                    },
+                  ])
+                }
+                className="px-3.5 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/70 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 text-xs font-black flex items-center gap-1.5 border border-indigo-200 dark:border-indigo-800"
+              >
+                <Plus className="w-4 h-4" />
+                <span>
+                  {isAr ? '+ إضافة خانة لعملة أخرى' : '+ Add Another Currency Row'}
+                </span>
+              </button>
+
+              <div className="text-end">
+                <span className="text-[11px] font-bold text-slate-500 block">
+                  {isAr
+                    ? 'إجمالي السيولة بعد التحويل للعملة المختارة:'
+                    : 'Total Converted Cash Balance:'}
+                </span>
+                <span className="text-lg font-black text-amber-600 dark:text-amber-400">
+                  {draftCashEntries
+                    .reduce(
+                      (acc, item) =>
+                        acc +
+                        convertCurrency(
+                          Number(item.amount) || 0,
+                          item.currency,
+                          portfolioCurrency,
+                          fxRates.ratesPerUsd
+                        ),
+                      0
+                    )
+                    .toLocaleString(undefined, { maximumFractionDigits: 2 })}{' '}
+                  {getCurrencySymbol(portfolioCurrency, isAr)}
+                </span>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setCashModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200"
+              >
+                {isAr ? 'إلغاء' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCashModal}
+                className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs sm:text-sm font-black shadow-md"
+              >
+                {isAr
+                  ? `تم — تحويل واعتماد الرصيد (${getCurrencySymbol(portfolioCurrency, true)})`
+                  : `Done — Convert & Save (${portfolioCurrency})`}
               </button>
             </div>
           </div>
