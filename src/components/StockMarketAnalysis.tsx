@@ -20,6 +20,8 @@ import {
   StockTransaction,
   StockTradePlan,
   PersonalStockOpinion,
+  StockDividend,
+  StockAlertItem,
   MarketRegion,
   SitePickCategory,
   PersonalStance,
@@ -291,6 +293,41 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
   const [explorerSectorQuery, setExplorerSectorQuery] = useState<string>('');
   const [showExchangeExplorerResults, setShowExchangeExplorerResults] = useState<boolean>(false);
 
+  // Cash Dividends Tracker state (سجل توزيعات الأرباح النقدية للأسهم)
+  const [dividends, setDividends] = useState<StockDividend[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed.dividends)) return parsed.dividends;
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  });
+
+  const [dividendForm, setDividendForm] = useState<{
+    stockId: string;
+    amountPerShare: number;
+    sharesCount: number;
+    date: string;
+    addedToCash: boolean;
+    notes: string;
+  }>({
+    stockId: '',
+    amountPerShare: 1.5,
+    sharesCount: 100,
+    date: new Date().toISOString().split('T')[0],
+    addedToCash: true,
+    notes: '',
+  });
+
+  // Average Cost Simulator state per purchased stock (حاسبة محاكاة تعديل متوسط سعر الشراء)
+  const [avgSimulators, setAvgSimulators] = useState<
+    Record<string, { simQty: number; simPrice: number; open: boolean }>
+  >({});
+
   const [lastSavedAt, setLastSavedAt] = useState<string>('');
   const [statusBanner, setStatusBanner] = useState<string | null>(null);
   const [showFullDisclaimerModal, setShowFullDisclaimerModal] = useState<boolean>(false);
@@ -417,6 +454,7 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
         cashEntries,
         portfolioCurrency,
         transactions,
+        dividends,
         tradePlans,
         personalOpinions,
         generalJournal,
@@ -440,6 +478,7 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
     cashEntries,
     portfolioCurrency,
     transactions,
+    dividends,
     tradePlans,
     personalOpinions,
     generalJournal,
@@ -455,6 +494,7 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
     setCashBalance(0);
     setCashEntries([]);
     setTransactions([]);
+    setDividends([]);
     setTradePlans([]);
     setPersonalOpinions([]);
     setGeneralJournal('');
@@ -760,6 +800,202 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
       });
       return updatedAny ? next : prev;
     });
+  };
+
+  // =========================================================================
+  // ENHANCEMENT 1: SMART PRICE, TARGET, STOP-LOSS & RSI ALERT RADAR
+  // =========================================================================
+  const stockAlerts = useMemo<StockAlertItem[]>(() => {
+    const list: StockAlertItem[] = [];
+    const ownedMap = new Map(purchasedRecommendations.map((r) => [r.stockId, r]));
+
+    // 1. Check owned stocks against Target & Stop Loss
+    purchasedRecommendations.forEach((rec) => {
+      if (rec.currentPrice >= rec.suggestedLevels.nextTargetPrice * 0.985 || rec.pnlPercent >= 12) {
+        list.push({
+          id: `alert-target-${rec.stockId}`,
+          stockId: rec.stockId,
+          symbol: rec.symbol,
+          nameAr: rec.nameAr,
+          nameEn: rec.nameEn,
+          currency: rec.currency,
+          currentPrice: rec.currentPrice,
+          triggerLevel: rec.suggestedLevels.nextTargetPrice,
+          alertType: 'target_hit',
+          severity: 'emerald',
+          titleAr: `🎯 وصول لمنطقة الهدف وجني الأرباح: ${rec.nameAr} (${rec.symbol})`,
+          titleEn: `🎯 Target Zone Reached: ${rec.symbol}`,
+          descriptionAr: `السعر الحالي (${rec.currentPrice} ${rec.currency}) يحقق ربحاً (+${rec.pnlPercent.toFixed(1)}%) واقترب/تجاوز الهدف المرشح (${rec.suggestedLevels.nextTargetPrice}).`,
+          descriptionEn: `Current price (${rec.currentPrice}) is up +${rec.pnlPercent.toFixed(1)}% near/above target (${rec.suggestedLevels.nextTargetPrice}).`,
+        });
+      } else if (
+        rec.currentPrice <= rec.suggestedLevels.suggestedStopLoss * 1.015 ||
+        rec.pnlPercent <= -6
+      ) {
+        list.push({
+          id: `alert-stop-${rec.stockId}`,
+          stockId: rec.stockId,
+          symbol: rec.symbol,
+          nameAr: rec.nameAr,
+          nameEn: rec.nameEn,
+          currency: rec.currency,
+          currentPrice: rec.currentPrice,
+          triggerLevel: rec.suggestedLevels.suggestedStopLoss,
+          alertType: 'stop_warning',
+          severity: 'rose',
+          titleAr: `⚠️ تنبيه اقتراب/كسر وقف الحماية: ${rec.nameAr} (${rec.symbol})`,
+          titleEn: `⚠️ Stop-Loss Warning: ${rec.symbol}`,
+          descriptionAr: `السعر الحالي (${rec.currentPrice} ${rec.currency}) قرب أو دون مستوى وقف الحماية (${rec.suggestedLevels.suggestedStopLoss}) بتغير (${rec.pnlPercent.toFixed(1)}%).`,
+          descriptionEn: `Current price (${rec.currentPrice}) is near/below stop-loss (${rec.suggestedLevels.suggestedStopLoss}).`,
+        });
+      }
+    });
+
+    // 2. Check all tracked stocks for RSI Oversold (<32) or Overbought (>70)
+    stocks.forEach((st) => {
+      if (st.rsi14 <= 32) {
+        list.push({
+          id: `alert-rsi-low-${st.id}`,
+          stockId: st.id,
+          symbol: st.symbol,
+          nameAr: st.nameAr,
+          nameEn: st.nameEn,
+          currency: st.currency,
+          currentPrice: st.currentPrice,
+          triggerLevel: st.support1,
+          alertType: 'rsi_oversold',
+          severity: 'indigo',
+          titleAr: `💎 تشبع بيعي ومؤشر ارتداد محتمل (RSI=${st.rsi14}): ${st.nameAr}`,
+          titleEn: `💎 Oversold Bounce Zone (RSI=${st.rsi14}): ${st.symbol}`,
+          descriptionAr: `${
+            ownedMap.has(st.id) ? 'سهم مملوك بالمحفظة: ' : ''
+          }مؤشر القوة النسبية في منطقة تشبع بيعي عند (${st.rsi14}) قرب الدعم (${st.support1} ${st.currency}).`,
+          descriptionEn: `RSI is oversold (${st.rsi14}) near support (${st.support1}).`,
+        });
+      } else if (st.rsi14 >= 72) {
+        list.push({
+          id: `alert-rsi-high-${st.id}`,
+          stockId: st.id,
+          symbol: st.symbol,
+          nameAr: st.nameAr,
+          nameEn: st.nameEn,
+          currency: st.currency,
+          currentPrice: st.currentPrice,
+          triggerLevel: st.resistance1,
+          alertType: 'rsi_overbought',
+          severity: 'amber',
+          titleAr: `🔥 تشبع شرائي ومقاومة فنية (RSI=${st.rsi14}): ${st.nameAr}`,
+          titleEn: `🔥 Overbought Zone (RSI=${st.rsi14}): ${st.symbol}`,
+          descriptionAr: `مؤشر القوة النسبية مرتفع عند (${st.rsi14}) قرب المقاومة (${st.resistance1} ${st.currency})؛ يُفضل الحذر من ملاحقة الارتفاع.`,
+          descriptionEn: `RSI is overbought (${st.rsi14}) near resistance (${st.resistance1}).`,
+        });
+      }
+    });
+
+    return list;
+  }, [purchasedRecommendations, stocks]);
+
+  // =========================================================================
+  // ENHANCEMENT 2: CASH DIVIDENDS TRACKER & TOTAL RETURN ENGINE
+  // =========================================================================
+  const totalDividendsUnified = useMemo(() => {
+    return dividends.reduce(
+      (acc, div) =>
+        acc + convertCurrency(div.totalAmount, div.currency, portfolioCurrency, fxRates.ratesPerUsd),
+      0
+    );
+  }, [dividends, portfolioCurrency, fxRates.ratesPerUsd]);
+
+  const handleRecordDividend = (e: React.FormEvent) => {
+    e.preventDefault();
+    const targetStock =
+      stocks.find((s) => s.id === dividendForm.stockId) || stocks[0];
+    if (!targetStock) return;
+
+    const amountPerShare = Math.max(0.01, Number(dividendForm.amountPerShare) || 0);
+    const sharesCount = Math.max(1, Number(dividendForm.sharesCount) || 1);
+    const totalAmount = Number((amountPerShare * sharesCount).toFixed(2));
+
+    const newDiv: StockDividend = {
+      id: `div-${Date.now()}`,
+      stockId: targetStock.id,
+      symbol: targetStock.symbol,
+      stockNameAr: targetStock.nameAr,
+      stockNameEn: targetStock.nameEn,
+      currency: targetStock.currency,
+      amountPerShare,
+      sharesCount,
+      totalAmount,
+      date: dividendForm.date || new Date().toISOString().split('T')[0],
+      addedToCash: dividendForm.addedToCash,
+      notes: dividendForm.notes,
+    };
+
+    setDividends((prev) => [newDiv, ...prev]);
+
+    if (dividendForm.addedToCash) {
+      const convertedToPortfolio = convertCurrency(
+        totalAmount,
+        targetStock.currency,
+        portfolioCurrency,
+        fxRates.ratesPerUsd
+      );
+      setCashBalance((prev) => Number((prev + convertedToPortfolio).toFixed(2)));
+    }
+
+    showToast(
+      isAr
+        ? `تم تسجيل التوزيعات النقدية لسهم (${targetStock.nameAr}) بقيمة ${totalAmount} ${targetStock.currency}`
+        : `Recorded cash dividend for ${targetStock.symbol}: ${totalAmount} ${targetStock.currency}`
+    );
+  };
+
+  // =========================================================================
+  // ENHANCEMENT 3: EXECUTE SIMULATED AVERAGE DOWN / UP PURCHASE
+  // =========================================================================
+  const handleExecuteSimulatedPurchase = (
+    stockId: string,
+    simQty: number,
+    simPrice: number
+  ) => {
+    const stObj = stocks.find((s) => s.id === stockId);
+    if (!stObj || simQty <= 0 || simPrice <= 0) return;
+
+    const totalCost = Number((simQty * simPrice).toFixed(2));
+    const newTx: StockTransaction = {
+      id: `tx-sim-${Date.now()}`,
+      stockId: stObj.id,
+      symbol: stObj.symbol,
+      stockNameAr: stObj.nameAr,
+      stockNameEn: stObj.nameEn,
+      market: stObj.market,
+      currency: stObj.currency,
+      type: 'buy',
+      quantity: simQty,
+      price: simPrice,
+      commission: 0,
+      totalAmount: totalCost,
+      date: new Date().toISOString().split('T')[0],
+      strategyTag: isAr ? 'تعزيز وتعديل المتوسط السعري' : 'Avg Cost Adjustment',
+      notes: isAr
+        ? `تم التنفيذ من حاسبة محاكاة تعديل المتوسط (${simQty} سهم × ${simPrice})`
+        : `Executed via Avg Cost Simulator (${simQty} @ ${simPrice})`,
+    };
+
+    setTransactions((prev) => [newTx, ...prev]);
+    const convertedCost = convertCurrency(
+      totalCost,
+      stObj.currency,
+      portfolioCurrency,
+      fxRates.ratesPerUsd
+    );
+    setCashBalance((prev) => Math.max(0, Number((prev - convertedCost).toFixed(2))));
+
+    showToast(
+      isAr
+        ? `تم اعتماد وتسجيل شراء (${simQty}) سهم من ${stObj.nameAr} بسعر ${simPrice} وتحديث المتوسط الفعلي`
+        : `Recorded simulated purchase of ${simQty} shares of ${stObj.symbol} @ ${simPrice}`
+    );
   };
 
   // Filtered stocks for screener
@@ -2208,15 +2444,78 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
 
           <div className="bg-white/5 rounded-2xl p-3 border border-white/10">
             <span className="text-[11px] text-slate-400 block">
-              {isAr ? 'الأسهم المشتراة / الخطط' : 'Purchased / Plans'}
+              {isAr ? 'الأسهم المشتراة / التوزيعات' : 'Purchased / Dividends'}
             </span>
             <span className="text-base sm:text-lg font-black text-sky-300 mt-0.5 block">
-              {purchasedRecommendations.length} {isAr ? 'مشتراة' : 'Owned'} / {tradePlans.length}{' '}
-              {isAr ? 'خطط' : 'Plans'}
+              {purchasedRecommendations.length} {isAr ? 'مشتراة' : 'Owned'} •{' '}
+              {totalDividendsUnified > 0
+                ? `+${totalDividendsUnified.toFixed(0)} ${getCurrencySymbol(
+                    portfolioCurrency,
+                    isAr
+                  )}`
+                : `${tradePlans.length} ${isAr ? 'خطط' : 'Plans'}`}
             </span>
           </div>
         </div>
       </div>
+
+      {/* =====================================================================
+          ENHANCEMENT 1: SMART PRICE, TARGET, STOP-LOSS & RSI ALERT RADAR
+         ===================================================================== */}
+      {stockAlerts.length > 0 && (
+        <div className="rounded-3xl bg-white dark:bg-slate-800/95 border-2 border-amber-500/50 p-4 sm:p-5 shadow-md space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="w-8 h-8 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black">
+                <Radio className="w-4 h-4 animate-pulse" />
+              </span>
+              <div>
+                <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white">
+                  {isAr
+                    ? `منبه الأهداف السعرية ووقف الخسارة ومؤشرات التشبع (${stockAlerts.length} تنبيه نشط)`
+                    : `Smart Price, Target, Stop-Loss & RSI Alert Radar (${stockAlerts.length} Active)`}
+                </h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  {isAr
+                    ? 'يراقب هذا الرادار تلقائياً وصول أسهمك لهدف جني الأرباح أو اقترابها من وقف الحماية أو دخولها مناطق التشبع البيعي/الشرائي.'
+                    : 'Automatically monitors your stocks for target zones, stop-loss proximity, and RSI oversold/overbought extremes.'}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleTabSwitch('stocks_purchased')}
+              className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-black"
+            >
+              {isAr ? 'عرض القرارات المرشحة للأسهم المشتراة' : 'View Purchased Stock Decisions'}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+            {stockAlerts.slice(0, 6).map((al) => {
+              const colorClasses =
+                al.severity === 'emerald'
+                  ? 'bg-emerald-50/90 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
+                  : al.severity === 'rose'
+                  ? 'bg-rose-50/90 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200'
+                  : al.severity === 'indigo'
+                  ? 'bg-indigo-50/90 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-800 text-indigo-900 dark:text-indigo-200'
+                  : 'bg-amber-50/90 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200';
+              return (
+                <div
+                  key={al.id}
+                  className={`p-3 rounded-2xl border text-xs space-y-1 ${colorClasses}`}
+                >
+                  <div className="font-black">{isAr ? al.titleAr : al.titleEn}</div>
+                  <p className="text-[11px] opacity-90 leading-relaxed">
+                    {isAr ? al.descriptionAr : al.descriptionEn}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* =====================================================================
           3. INTERNAL WORKSPACE NAVIGATION TABS
@@ -3888,6 +4187,189 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
               </div>
             </div>
           )}
+
+          {/* ENHANCEMENT 2: CASH DIVIDENDS TRACKER & TOTAL RETURN ENGINE */}
+          <div className="rounded-3xl bg-white dark:bg-slate-800/95 border-2 border-emerald-500/30 p-6 shadow-md space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-700/70 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-md">
+                  <Wallet className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                    {isAr
+                      ? 'سجل توزيعات الأرباح النقدية للأسهم وحساب العائد الكلي'
+                      : 'Cash Dividends Tracker & Total Stock Return'}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {isAr
+                      ? 'سجل التوزيعات النقدية المستلمة لكل سهم ليتم إضافتها تلقائياً للسيولة النقدية وحساب العائد الكلي للسهم (ربح السعر + التوزيعات).'
+                      : 'Record cash dividends per stock to automatically credit portfolio cash and compute Total Return (Price P&L + Dividends).'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="px-4 py-2 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-end">
+                <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 block">
+                  {isAr
+                    ? 'إجمالي التوزيعات المستلمة (بعملة المحفظة)'
+                    : 'Total Dividends Received'}
+                </span>
+                <span className="text-base font-black text-emerald-700 dark:text-emerald-300">
+                  +{totalDividendsUnified.toLocaleString(undefined, { maximumFractionDigits: 1 })}{' '}
+                  {getCurrencySymbol(portfolioCurrency, isAr)}
+                </span>
+              </div>
+            </div>
+
+            {stocks.length > 0 && (
+              <form
+                onSubmit={handleRecordDividend}
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end bg-slate-50 dark:bg-slate-900/70 p-4 rounded-2xl border border-slate-200/70 dark:border-slate-800"
+              >
+                <div className="lg:col-span-2">
+                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                    {isAr ? 'اختر السهم' : 'Select Stock'}
+                  </label>
+                  <select
+                    value={dividendForm.stockId || stocks[0]?.id || ''}
+                    onChange={(e) => {
+                      const sid = e.target.value;
+                      const held = portfolio.holdings.find((h) => h.stockId === sid);
+                      setDividendForm((prev) => ({
+                        ...prev,
+                        stockId: sid,
+                        sharesCount: held ? held.quantity : prev.sharesCount,
+                      }));
+                    }}
+                    className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-black text-slate-900 dark:text-white"
+                  >
+                    {stocks.map((st) => (
+                      <option key={st.id} value={st.id}>
+                        {isAr ? st.nameAr : st.nameEn} ({st.symbol}) - {st.currency}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                    {isAr ? 'التوزيع للسهم الواحد' : 'Dividend / Share'}
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={dividendForm.amountPerShare}
+                    onChange={(e) =>
+                      setDividendForm((prev) => ({
+                        ...prev,
+                        amountPerShare: Number(e.target.value),
+                      }))
+                    }
+                    className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-black"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                    {isAr ? 'عدد الأسهم المستحقة' : 'Eligible Shares'}
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={dividendForm.sharesCount}
+                    onChange={(e) =>
+                      setDividendForm((prev) => ({
+                        ...prev,
+                        sharesCount: Number(e.target.value),
+                      }))
+                    }
+                    className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-black"
+                  />
+                </div>
+
+                <div>
+                  <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 pb-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={dividendForm.addedToCash}
+                      onChange={(e) =>
+                        setDividendForm((prev) => ({
+                          ...prev,
+                          addedToCash: e.target.checked,
+                        }))
+                      }
+                      className="rounded text-emerald-600"
+                    />
+                    <span>
+                      {isAr ? 'إضافة للسيولة النقدية تلقائياً' : 'Auto-add to Cash Balance'}
+                    </span>
+                  </label>
+                </div>
+
+                <div>
+                  <button
+                    type="submit"
+                    className="w-full px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-sm"
+                  >
+                    {isAr ? '+ تسجيل التوزيعات' : '+ Record Dividend'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {dividends.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-start">
+                  <thead className="bg-slate-50 dark:bg-slate-900/80 text-slate-500 font-extrabold border-b border-slate-200 dark:border-slate-700">
+                    <tr>
+                      <th className="py-2.5 px-3 text-start">{isAr ? 'التاريخ' : 'Date'}</th>
+                      <th className="py-2.5 px-3 text-start">{isAr ? 'السهم' : 'Stock'}</th>
+                      <th className="py-2.5 px-3 text-center">
+                        {isAr ? 'التوزيع للسهم' : 'Per Share'}
+                      </th>
+                      <th className="py-2.5 px-3 text-center">
+                        {isAr ? 'عدد الأسهم' : 'Shares'}
+                      </th>
+                      <th className="py-2.5 px-3 text-center">
+                        {isAr ? 'إجمالي التوزيع المستلم' : 'Total Dividend'}
+                      </th>
+                      <th className="py-2.5 px-3 text-center">{isAr ? 'حذف' : 'Delete'}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {dividends.map((dv) => (
+                      <tr key={dv.id}>
+                        <td className="py-2.5 px-3 font-mono text-slate-500">{dv.date}</td>
+                        <td className="py-2.5 px-3 font-black">
+                          {isAr ? dv.stockNameAr : dv.stockNameEn} ({dv.symbol})
+                        </td>
+                        <td className="py-2.5 px-3 text-center font-bold">
+                          {dv.amountPerShare.toFixed(2)} {dv.currency}
+                        </td>
+                        <td className="py-2.5 px-3 text-center font-bold">{dv.sharesCount}</td>
+                        <td className="py-2.5 px-3 text-center font-black text-emerald-600">
+                          +{dv.totalAmount.toLocaleString()} {dv.currency}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDividends((prev) => prev.filter((item) => item.id !== dv.id))
+                            }
+                            className="p-1 text-slate-400 hover:text-rose-600"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -4226,6 +4708,188 @@ export const StockMarketAnalysis: React.FC<StockMarketAnalysisProps> = ({
                         </span>
                       </div>
                     </div>
+
+                    {/* ENHANCEMENT 2 & 3 INSIDE PURCHASED STOCK CARD:
+                        Total Return (Price + Dividends) + Interactive Average Down/Up Simulator */}
+                    {(() => {
+                      const stockDivs = dividends
+                        .filter((d) => d.stockId === rec.stockId)
+                        .reduce((acc, d) => acc + d.totalAmount, 0);
+                      const totalReturnAmount = rec.pnlAmount + stockDivs;
+                      const totalCostBasis = rec.avgBuyPrice * rec.quantity;
+                      const totalReturnPct =
+                        totalCostBasis > 0 ? (totalReturnAmount / totalCostBasis) * 100 : 0;
+
+                      const simState = avgSimulators[rec.stockId] || {
+                        simQty: Math.max(10, Math.round(rec.quantity * 0.5)),
+                        simPrice: rec.currentPrice,
+                        open: false,
+                      };
+                      const newTotalQty = rec.quantity + (Number(simState.simQty) || 0);
+                      const newTotalCost =
+                        rec.quantity * rec.avgBuyPrice +
+                        (Number(simState.simQty) || 0) * (Number(simState.simPrice) || 0);
+                      const newAvgCost = newTotalQty > 0 ? newTotalCost / newTotalQty : rec.avgBuyPrice;
+                      const avgDiffPct =
+                        rec.avgBuyPrice > 0
+                          ? ((newAvgCost - rec.avgBuyPrice) / rec.avgBuyPrice) * 100
+                          : 0;
+                      const newPnlPct =
+                        newAvgCost > 0
+                          ? ((rec.currentPrice - newAvgCost) / newAvgCost) * 100
+                          : 0;
+
+                      return (
+                        <div className="pt-3 border-t border-slate-100 dark:border-slate-700/70 space-y-3">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex flex-wrap items-center gap-3 text-xs">
+                              <span className="px-3 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 font-bold text-emerald-800 dark:text-emerald-300">
+                                {isAr
+                                  ? `التوزيعات المستلمة للسهم: +${stockDivs.toFixed(1)} ${rec.currency}`
+                                  : `Dividends Received: +${stockDivs.toFixed(1)} ${rec.currency}`}
+                              </span>
+                              <span className="px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-900 font-black text-slate-800 dark:text-slate-200">
+                                {isAr
+                                  ? `العائد الكلي (ربح السعر + التوزيعات): ${
+                                      totalReturnAmount >= 0 ? '+' : ''
+                                    }${totalReturnAmount.toFixed(1)} ${rec.currency} (${
+                                      totalReturnPct >= 0 ? '+' : ''
+                                    }${totalReturnPct.toFixed(2)}%)`
+                                  : `Total Return (Price + Divs): ${
+                                      totalReturnAmount >= 0 ? '+' : ''
+                                    }${totalReturnAmount.toFixed(1)} ${rec.currency} (${totalReturnPct.toFixed(
+                                      2
+                                    )}%)`}
+                              </span>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setAvgSimulators((prev) => ({
+                                  ...prev,
+                                  [rec.stockId]: {
+                                    ...simState,
+                                    open: !simState.open,
+                                  },
+                                }))
+                              }
+                              className="px-3.5 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/80 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-black flex items-center gap-1.5"
+                            >
+                              <Scale className="w-3.5 h-3.5" />
+                              <span>
+                                {isAr
+                                  ? 'حاسبة محاكاة تعديل متوسط سعر الشراء (قبل التنفيذ)'
+                                  : 'Average Cost Down/Up Simulator'}
+                              </span>
+                            </button>
+                          </div>
+
+                          {simState.open && (
+                            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/90 border-2 border-indigo-500/30 space-y-3">
+                              <div className="text-xs font-black text-indigo-900 dark:text-indigo-300">
+                                {isAr
+                                  ? 'محاكاة شراء كمية إضافية لمعرفة متوسط التكلفة الجديد قبل الشراء الفعلي:'
+                                  : 'Simulate buying additional shares to preview your new average cost before executing:'}
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+                                <div>
+                                  <label className="block text-[10px] font-bold text-slate-500 mb-1">
+                                    {isAr ? 'الكمية الإضافية المقترحة' : 'Additional Shares'}
+                                  </label>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={simState.simQty}
+                                    onChange={(e) =>
+                                      setAvgSimulators((prev) => ({
+                                        ...prev,
+                                        [rec.stockId]: {
+                                          ...simState,
+                                          simQty: Math.max(1, Number(e.target.value)),
+                                        },
+                                      }))
+                                    }
+                                    className="w-full px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-black"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="block text-[10px] font-bold text-slate-500 mb-1">
+                                    {isAr ? 'سعر الشراء المقترح' : 'Simulated Buy Price'}
+                                  </label>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0.01"
+                                    value={simState.simPrice}
+                                    onChange={(e) =>
+                                      setAvgSimulators((prev) => ({
+                                        ...prev,
+                                        [rec.stockId]: {
+                                          ...simState,
+                                          simPrice: Math.max(0.01, Number(e.target.value)),
+                                        },
+                                      }))
+                                    }
+                                    className="w-full px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-black"
+                                  />
+                                </div>
+
+                                <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-800 text-center">
+                                  <span className="block text-[10px] text-slate-400 font-bold">
+                                    {isAr ? 'متوسط التكلفة الجديد' : 'New Avg Cost'}
+                                  </span>
+                                  <span className="text-sm font-black text-indigo-600 dark:text-indigo-300">
+                                    {newAvgCost.toFixed(2)} {rec.currency}
+                                  </span>
+                                  <span className="block text-[9px] text-slate-500 font-bold">
+                                    ({avgDiffPct >= 0 ? '+' : ''}
+                                    {avgDiffPct.toFixed(1)}% {isAr ? 'عن السابق' : 'vs old'})
+                                  </span>
+                                </div>
+
+                                <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-center">
+                                  <span className="block text-[10px] text-slate-400 font-bold">
+                                    {isAr ? 'الربح/الخسارة بعد التعديل' : 'New P&L %'}
+                                  </span>
+                                  <span
+                                    className={`text-sm font-black ${
+                                      newPnlPct >= 0 ? 'text-emerald-600' : 'text-rose-600'
+                                    }`}
+                                  >
+                                    {newPnlPct >= 0 ? '+' : ''}
+                                    {newPnlPct.toFixed(2)}%
+                                  </span>
+                                  <span className="block text-[9px] text-slate-500 font-bold">
+                                    {isAr ? `إجمالي: ${newTotalQty} سهم` : `Total: ${newTotalQty} sh`}
+                                  </span>
+                                </div>
+
+                                <div>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleExecuteSimulatedPurchase(
+                                        rec.stockId,
+                                        simState.simQty,
+                                        simState.simPrice
+                                      )
+                                    }
+                                    className="w-full px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-sm"
+                                  >
+                                    {isAr
+                                      ? 'اعتماد وتنفيذ الشراء بالسجل'
+                                      : 'Execute Simulated Buy'}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}

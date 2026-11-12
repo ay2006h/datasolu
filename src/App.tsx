@@ -11,6 +11,7 @@ import { DataTable } from './components/DataTable';
 import { PivotTable } from './components/PivotTable';
 import { ProductInventoryAnalysis } from './components/ProductInventoryAnalysis';
 import { SalesMappingAndSwot } from './components/SalesMappingAndSwot';
+import { SalesTargetAndComparisonPanel } from './components/SalesTargetAndComparisonPanel';
 import { StockMarketAnalysis } from './components/StockMarketAnalysis';
 import { useI18n } from './locales/i18nContext';
 import { AppMode, SalesColumnMapping, WorkbookData } from './types';
@@ -738,6 +739,18 @@ export const App: React.FC = () => {
                 {(activeTab === 'dashboard' || activeTab === 'charts') && (
                   <section className="space-y-3">
                     <KpiCards metrics={kpis} />
+                  </section>
+                )}
+
+                {/* 2.5 Monthly Sales & Profit Target Gauge + Period-over-Period File Comparison */}
+                {(activeTab === 'dashboard' ||
+                  activeTab === 'periods' ||
+                  activeTab === 'charts') && (
+                  <section>
+                    <SalesTargetAndComparisonPanel
+                      sheet={activeSalesSheet}
+                      mapping={salesMapping}
+                    />
                   </section>
                 )}
 

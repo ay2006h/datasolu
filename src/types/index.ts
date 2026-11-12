@@ -414,4 +414,37 @@ export interface PersonalStockOpinion {
   updatedAt: string;
 }
 
+export interface StockDividend {
+  id: string;
+  stockId: string;
+  symbol: string;
+  stockNameAr: string;
+  stockNameEn: string;
+  currency: string;
+  amountPerShare: number;
+  sharesCount: number;
+  totalAmount: number;
+  date: string;
+  addedToCash: boolean;
+  notes: string;
+}
+
+export interface StockAlertItem {
+  id: string;
+  stockId: string;
+  symbol: string;
+  nameAr: string;
+  nameEn: string;
+  currency: string;
+  currentPrice: number;
+  triggerLevel: number;
+  alertType: 'target_hit' | 'stop_warning' | 'rsi_oversold' | 'rsi_overbought';
+  severity: 'emerald' | 'rose' | 'amber' | 'indigo';
+  titleAr: string;
+  titleEn: string;
+  descriptionAr: string;
+  descriptionEn: string;
+}
+
+
 

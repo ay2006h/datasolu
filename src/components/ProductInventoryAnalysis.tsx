@@ -89,6 +89,25 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(15);
 
+  // 5. Purchase Order Budget Simulator Cap (محاكاة سقف ميزانية أمر الشراء)
+  const [poBudgetCap, setPoBudgetCap] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('datasolu_inventory_po_budget_v1');
+      if (saved) return Math.max(0, Number(saved) || 0);
+    } catch {
+      // ignore
+    }
+    return 0;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('datasolu_inventory_po_budget_v1', String(poBudgetCap));
+    } catch {
+      // ignore
+    }
+  }, [poBudgetCap]);
+
   // Reset to first page when filtering or sorting changes
   useEffect(() => {
     setCurrentPage(1);
@@ -2028,6 +2047,495 @@ export const ProductInventoryAnalysis: React.FC<ProductInventoryAnalysisProps> =
           )}
         </div>
       </div>
+
+      {/* =====================================================================
+          ENHANCEMENT 4: PURCHASE ORDER COST ESTIMATOR & BUDGET PRIORITIZER
+         ===================================================================== */}
+      {(() => {
+        const reorderCandidates = items
+          .filter(
+            (it) =>
+              it.suggestedOrderQty > 0 ||
+              it.restockUrgency === 'critical' ||
+              it.restockUrgency === 'needed'
+          )
+          .map((it) => {
+            const qty = Math.max(1, it.suggestedOrderQty || Math.ceil(it.dailyRunRate * targetCoverageDays));
+            const estUnitCost =
+              it.soldQty > 0 && it.cost > 0
+                ? it.cost / it.soldQty
+                : it.unitPrice > 0
+                ? it.unitPrice * 0.72
+                : 10;
+            const estUnitPrice =
+              it.unitPrice > 0
+                ? it.unitPrice
+                : it.soldQty > 0 && it.revenue > 0
+                ? it.revenue / it.soldQty
+                : estUnitCost * 1.3;
+            const estOrderCost = qty * estUnitCost;
+            const estOrderRevenue = qty * estUnitPrice;
+            const estOrderProfit = Math.max(0, estOrderRevenue - estOrderCost);
+
+            // Priority score: Critical + King > Critical > King > High Margin + Fast
+            const priorityScore =
+              (it.restockUrgency === 'critical' ? 1000 : 400) +
+              (it.isKingItem ? 500 : 0) +
+              (it.movementSpeed === 'fast' ? 200 : it.movementSpeed === 'medium' ? 80 : 0) +
+              Math.min(150, it.profitMarginPercent);
+
+            return {
+              ...it,
+              orderQty: qty,
+              estUnitCost,
+              estUnitPrice,
+              estOrderCost,
+              estOrderRevenue,
+              estOrderProfit,
+              priorityScore,
+            };
+          })
+          .sort((a, b) => b.priorityScore - a.priorityScore);
+
+        const totalRequiredBudget = reorderCandidates.reduce((acc, r) => acc + r.estOrderCost, 0);
+        const totalExpectedRevenue = reorderCandidates.reduce((acc, r) => acc + r.estOrderRevenue, 0);
+        const totalExpectedProfit = reorderCandidates.reduce((acc, r) => acc + r.estOrderProfit, 0);
+
+        let remainingBudget = poBudgetCap > 0 ? poBudgetCap : Infinity;
+        const allocatedList = reorderCandidates.map((r) => {
+          if (poBudgetCap <= 0) {
+            return {
+              ...r,
+              approvedQty: r.orderQty,
+              approvedCost: r.estOrderCost,
+              approvedProfit: r.estOrderProfit,
+              budgetStatus: 'full' as 'full' | 'partial' | 'deferred',
+            };
+          }
+          if (remainingBudget >= r.estOrderCost) {
+            remainingBudget -= r.estOrderCost;
+            return {
+              ...r,
+              approvedQty: r.orderQty,
+              approvedCost: r.estOrderCost,
+              approvedProfit: r.estOrderProfit,
+              budgetStatus: 'full' as const,
+            };
+          }
+          if (remainingBudget >= r.estUnitCost) {
+            const partialQty = Math.floor(remainingBudget / r.estUnitCost);
+            const partialCost = partialQty * r.estUnitCost;
+            const partialProfit = partialQty * Math.max(0, r.estUnitPrice - r.estUnitCost);
+            remainingBudget -= partialCost;
+            return {
+              ...r,
+              approvedQty: partialQty,
+              approvedCost: partialCost,
+              approvedProfit: partialProfit,
+              budgetStatus: 'partial' as const,
+            };
+          }
+          return {
+            ...r,
+            approvedQty: 0,
+            approvedCost: 0,
+            approvedProfit: 0,
+            budgetStatus: 'deferred' as const,
+          };
+        });
+
+        const totalApprovedCost = allocatedList.reduce((acc, r) => acc + r.approvedCost, 0);
+        const totalApprovedProfit = allocatedList.reduce((acc, r) => acc + r.approvedProfit, 0);
+
+        const handleExportBudgetPO = () => {
+          const rowsToExport = allocatedList
+            .filter((r) => r.approvedQty > 0)
+            .map((r, i) => ({
+              [isAr ? 'أولوية التوريد' : 'Priority Rank']: i + 1,
+              [isAr ? 'اسم الصنف' : 'Item Name']: r.itemName,
+              [isAr ? 'القسم' : 'Category']: r.category,
+              [isAr ? 'الكمية المطلوبة الأصلية' : 'Original Suggested Qty']: r.orderQty,
+              [isAr ? 'الكمية المعتمدة ضمن الميزانية' : 'Approved Qty in Budget']: r.approvedQty,
+              [isAr ? 'سعر التكلفة التقديري للوحدة' : 'Unit Cost']: Number(r.estUnitCost.toFixed(2)),
+              [isAr ? 'إجمالي تكلفة الشراء المعتمدة' : 'Approved Order Cost']: Number(
+                r.approvedCost.toFixed(2)
+              ),
+              [isAr ? 'الربح المتوقع من بيع الطلبية' : 'Expected Net Profit']: Number(
+                r.approvedProfit.toFixed(2)
+              ),
+              [isAr ? 'حالة الاعتماد بالميزانية' : 'Budget Status']:
+                r.budgetStatus === 'full'
+                  ? isAr
+                    ? 'معتمد بالكامل'
+                    : 'Full'
+                  : isAr
+                  ? 'معتمد جزئياً حسب سقف الميزانية'
+                  : 'Partial',
+            }));
+          if (rowsToExport.length === 0) return;
+          const ws = XLSX.utils.json_to_sheet(rowsToExport);
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, isAr ? 'أمر الشراء حسب الميزانية' : 'Budget PO');
+          XLSX.writeFile(
+            wb,
+            isAr
+              ? `أمر_شراء_معتمد_حسب_الميزانية_${new Date().toISOString().split('T')[0]}.xlsx`
+              : `Prioritized_Budget_Purchase_Order_${new Date().toISOString().split('T')[0]}.xlsx`
+          );
+        };
+
+        // ENHANCEMENT 5: DEAD STOCK CAPITAL LOCK & PROMOTIONAL LIQUIDATION ADVISOR
+        const deadStockCandidates = items
+          .filter(
+            (it) =>
+              it.movementSpeed === 'slow' ||
+              it.restockUrgency === 'overstock' ||
+              (it.daysOfInventoryLeft != null && it.daysOfInventoryLeft > 90)
+          )
+          .map((it) => {
+            const stockUnits: number =
+              it.currentStock != null && it.currentStock > 0
+                ? it.currentStock
+                : Math.max(5, Math.ceil(it.soldQty * 1.5));
+            const estUnitCost =
+              it.soldQty > 0 && it.cost > 0
+                ? it.cost / it.soldQty
+                : it.unitPrice > 0
+                ? it.unitPrice * 0.7
+                : 15;
+            const estUnitPrice =
+              it.unitPrice > 0
+                ? it.unitPrice
+                : it.soldQty > 0 && it.revenue > 0
+                ? it.revenue / it.soldQty
+                : estUnitCost * 1.35;
+
+            const lockedCapital = stockUnits * estUnitCost;
+            // Recommend a discount that keeps selling price >= unitCost * 1.05 (zero loss, +5% safety buffer)
+            const maxSafeDiscountPct =
+              estUnitPrice > estUnitCost * 1.05
+                ? Math.min(
+                    35,
+                    Math.max(
+                      10,
+                      Math.floor(((estUnitPrice - estUnitCost * 1.05) / estUnitPrice) * 100)
+                    )
+                  )
+                : 5;
+            const promoPrice = estUnitPrice * (1 - maxSafeDiscountPct / 100);
+            const expectedCashFreed = stockUnits * promoPrice;
+            const netProfitAfterPromo = Math.max(0, expectedCashFreed - lockedCapital);
+
+            return {
+              ...it,
+              stockUnits,
+              estUnitCost,
+              estUnitPrice,
+              lockedCapital,
+              suggestedDiscountPct: maxSafeDiscountPct,
+              promoPrice,
+              expectedCashFreed,
+              netProfitAfterPromo,
+            };
+          })
+          .sort((a, b) => b.lockedCapital - a.lockedCapital);
+
+        const totalLockedCapital = deadStockCandidates.reduce((acc, d) => acc + d.lockedCapital, 0);
+        const totalExpectedCashFreed = deadStockCandidates.reduce(
+          (acc, d) => acc + d.expectedCashFreed,
+          0
+        );
+
+        const handleExportDeadStockPromo = () => {
+          const rowsToExport = deadStockCandidates.map((d, i) => ({
+            [isAr ? 'م' : '#']: i + 1,
+            [isAr ? 'اسم الصنف الراكد / البطيء' : 'Stagnant Item']: d.itemName,
+            [isAr ? 'القسم' : 'Category']: d.category,
+            [isAr ? 'الكمية المتوفرة بالمخزون' : 'Stock Qty']: d.stockUnits,
+            [isAr ? 'سعر التكلفة للوحدة' : 'Unit Cost']: Number(d.estUnitCost.toFixed(2)),
+            [isAr ? 'السيولة المجمدة في الصنف' : 'Locked Capital']: Number(
+              d.lockedCapital.toFixed(2)
+            ),
+            [isAr ? 'سعر البيع الحالي' : 'Current Price']: Number(d.estUnitPrice.toFixed(2)),
+            [isAr ? 'نسبة الخصم الترويجي المقترحة %' : 'Suggested Promo Discount %']: `${d.suggestedDiscountPct}%`,
+            [isAr ? 'سعر البيع الترويجي المقترح (بدون خسارة)' : 'Promo Price (No Loss)']: Number(
+              d.promoPrice.toFixed(2)
+            ),
+            [isAr ? 'السيولة النقدية المتوقع تحريرها' : 'Expected Cash Freed']: Number(
+              d.expectedCashFreed.toFixed(2)
+            ),
+          }));
+          if (rowsToExport.length === 0) return;
+          const ws = XLSX.utils.json_to_sheet(rowsToExport);
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, isAr ? 'خطة تصفية الرواكد' : 'Dead Stock Liquidation');
+          XLSX.writeFile(
+            wb,
+            isAr
+              ? `خطة_تصفية_الأصناف_الراكدة_وتحرير_السيولة_${new Date().toISOString().split('T')[0]}.xlsx`
+              : `Dead_Stock_Liquidation_Plan_${new Date().toISOString().split('T')[0]}.xlsx`
+          );
+        };
+
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* PANEL A: PURCHASE ORDER BUDGET SIMULATOR */}
+            <div className="rounded-3xl bg-white dark:bg-slate-800/95 border-2 border-indigo-500/30 p-6 shadow-md space-y-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-700/70 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md">
+                    <ShoppingCart className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                      {isAr
+                        ? 'محاكي ميزانية أمر الشراء وترتيب الأولويات تلقائياً'
+                        : 'Purchase Order Budget Simulator & Priority Optimizer'}
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {isAr
+                        ? 'يحسب التكلفة التقديرية لطلبية الأصناف التي تحتاج للطلب ويرتبها حسب الأولوية والربحية ضمن ميزانيتك.'
+                        : 'Calculates estimated PO cost for reorder items and prioritizes them within your budget cap.'}
+                    </p>
+                  </div>
+                </div>
+
+                {allocatedList.some((r) => r.approvedQty > 0) && (
+                  <button
+                    type="button"
+                    onClick={handleExportBudgetPO}
+                    className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>
+                      {isAr ? 'تصدير أمر الشراء المعتمد (Excel)' : 'Export Approved PO'}
+                    </span>
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                  <span className="text-[11px] font-bold text-slate-500 block">
+                    {isAr ? 'إجمالي تكلفة طلبية الشراء الكاملة' : 'Total Full PO Cost'}
+                  </span>
+                  <span className="text-base font-black text-slate-900 dark:text-white mt-1 block">
+                    {formatCurrency(totalRequiredBudget, isAr)}
+                  </span>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800">
+                  <label className="text-[11px] font-extrabold text-indigo-800 dark:text-indigo-300 block">
+                    {isAr
+                      ? 'سقف الميزانية المتاحة للطلب (0 = مفتوح):'
+                      : 'Available Budget Cap (0 = Unlimited):'}
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="100"
+                    value={poBudgetCap}
+                    onChange={(e) => setPoBudgetCap(Math.max(0, Number(e.target.value)))}
+                    placeholder={isAr ? 'اكتب سقف الميزانية...' : 'Enter budget cap...'}
+                    className="w-full mt-1 px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 border border-indigo-300 dark:border-indigo-700 text-xs font-black text-indigo-700 dark:text-indigo-300"
+                  />
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800">
+                  <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 block">
+                    {isAr ? 'صافي الربح المتوقع من الطلبية المعتمدة' : 'Expected Net Profit from PO'}
+                  </span>
+                  <span className="text-base font-black text-emerald-700 dark:text-emerald-300 mt-1 block">
+                    +{formatCurrency(poBudgetCap > 0 ? totalApprovedProfit : totalExpectedProfit, isAr)}
+                  </span>
+                  <span className="text-[10px] text-slate-500 block">
+                    {isAr
+                      ? `بتكلفة معتمدة: ${formatCurrency(totalApprovedCost, isAr)}`
+                      : `Approved Cost: ${formatCurrency(totalApprovedCost, isAr)}`}
+                  </span>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto max-h-64 rounded-2xl border border-slate-200 dark:border-slate-700">
+                <table className="w-full text-xs text-start">
+                  <thead className="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-300 font-extrabold sticky top-0">
+                    <tr>
+                      <th className="py-2.5 px-3 text-start">{isAr ? 'الصنف (حسب الأولوية)' : 'Item'}</th>
+                      <th className="py-2.5 px-2 text-center">{isAr ? 'الكمية المعتمدة' : 'Approved Qty'}</th>
+                      <th className="py-2.5 px-2 text-center">{isAr ? 'تكلفة الوحدة' : 'Unit Cost'}</th>
+                      <th className="py-2.5 px-2 text-center">{isAr ? 'إجمالي التكلفة' : 'Order Cost'}</th>
+                      <th className="py-2.5 px-2 text-center">{isAr ? 'الحالة' : 'Status'}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {allocatedList.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-6 text-center text-slate-400 font-bold">
+                          {isAr
+                            ? 'جميع الأصناف رصيدها كافٍ حالياً ولا توجد أصناف تحتاج لإعادة طلب'
+                            : 'All items have sufficient stock'}
+                        </td>
+                      </tr>
+                    ) : (
+                      allocatedList.slice(0, 12).map((r, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                          <td className="py-2 px-3 font-black text-slate-900 dark:text-white">
+                            #{idx + 1} {r.itemName}
+                          </td>
+                          <td className="py-2 px-2 text-center font-black text-indigo-600">
+                            {r.approvedQty} / {r.orderQty}
+                          </td>
+                          <td className="py-2 px-2 text-center font-mono">
+                            {r.estUnitCost.toFixed(1)}
+                          </td>
+                          <td className="py-2 px-2 text-center font-black">
+                            {formatCurrency(r.approvedCost, isAr)}
+                          </td>
+                          <td className="py-2 px-2 text-center">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                                r.budgetStatus === 'full'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : r.budgetStatus === 'partial'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : 'bg-rose-100 text-rose-800'
+                              }`}
+                            >
+                              {r.budgetStatus === 'full'
+                                ? isAr
+                                  ? 'ضمن الميزانية'
+                                  : 'Approved'
+                                : r.budgetStatus === 'partial'
+                                ? isAr
+                                  ? 'كمية جزئية'
+                                  : 'Partial'
+                                : isAr
+                                ? 'خارج السقف'
+                                : 'Deferred'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* PANEL B: DEAD STOCK CAPITAL LOCK & PROMOTIONAL LIQUIDATION ADVISOR */}
+            <div className="rounded-3xl bg-white dark:bg-slate-800/95 border-2 border-amber-500/30 p-6 shadow-md space-y-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-700/70 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center shadow-md">
+                    <Snowflake className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                      {isAr
+                        ? 'كاشف الأصناف الراكدة والسيولة المجمدة ومقترح الخصم الترويجي'
+                        : 'Dead Stock Capital Lock & Promo Liquidation Advisor'}
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {isAr
+                        ? 'يحسب السيولة النقدية المجمدة في الأصناف بطيئة الحركة ويقترح نسبة خصم ترويجي لتحرير السيولة بدون خسارة.'
+                        : 'Calculates capital locked in slow-moving stock and recommends a safe promotional discount to free cash without loss.'}
+                    </p>
+                  </div>
+                </div>
+
+                {deadStockCandidates.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleExportDeadStockPromo}
+                    className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>
+                      {isAr ? 'تصدير عروض تصفية الرواكد (Excel)' : 'Export Promo Plan'}
+                    </span>
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-3.5 rounded-2xl bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800">
+                  <span className="text-[11px] font-bold text-rose-700 dark:text-rose-300 block">
+                    {isAr ? 'إجمالي السيولة المجمدة في الرواكد' : 'Total Locked Capital'}
+                  </span>
+                  <span className="text-base font-black text-rose-700 dark:text-rose-300 mt-1 block">
+                    {formatCurrency(totalLockedCapital, isAr)}
+                  </span>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800">
+                  <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 block">
+                    {isAr ? 'السيولة النقدية المتوقع تحريرها بالعرض' : 'Expected Cash Freed'}
+                  </span>
+                  <span className="text-base font-black text-emerald-700 dark:text-emerald-300 mt-1 block">
+                    {formatCurrency(totalExpectedCashFreed, isAr)}
+                  </span>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                  <span className="text-[11px] font-bold text-slate-500 block">
+                    {isAr ? 'عدد الأصناف المرشحة للعروض الترويجية' : 'Items for Promo'}
+                  </span>
+                  <span className="text-base font-black text-slate-900 dark:text-white mt-1 block">
+                    {deadStockCandidates.length} {isAr ? 'صنف' : 'SKUs'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto max-h-64 rounded-2xl border border-slate-200 dark:border-slate-700">
+                <table className="w-full text-xs text-start">
+                  <thead className="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-300 font-extrabold sticky top-0">
+                    <tr>
+                      <th className="py-2.5 px-3 text-start">{isAr ? 'الصنف الراكد / البطيء' : 'Stagnant SKU'}</th>
+                      <th className="py-2.5 px-2 text-center">{isAr ? 'السيولة المجمدة' : 'Locked Cash'}</th>
+                      <th className="py-2.5 px-2 text-center">{isAr ? 'الخصم المقترح %' : 'Promo %'}</th>
+                      <th className="py-2.5 px-2 text-center">{isAr ? 'سعر العرض الآمن' : 'Promo Price'}</th>
+                      <th className="py-2.5 px-2 text-center">{isAr ? 'السيولة المستردة' : 'Cash Freed'}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {deadStockCandidates.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-6 text-center text-slate-400 font-bold">
+                          {isAr
+                            ? 'ممتاز! لا توجد أصناف راكدة أو مكدسة حالياً'
+                            : 'Great! No stagnant or overstocked items detected'}
+                        </td>
+                      </tr>
+                    ) : (
+                      deadStockCandidates.slice(0, 12).map((d, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                          <td className="py-2 px-3 font-black text-slate-900 dark:text-white">
+                            {d.itemName}
+                          </td>
+                          <td className="py-2 px-2 text-center font-bold text-rose-600">
+                            {formatCurrency(d.lockedCapital, isAr)}
+                          </td>
+                          <td className="py-2 px-2 text-center">
+                            <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-black text-[10px]">
+                              -{d.suggestedDiscountPct}%
+                            </span>
+                          </td>
+                          <td className="py-2 px-2 text-center font-black text-indigo-600">
+                            {d.promoPrice.toFixed(2)}
+                          </td>
+                          <td className="py-2 px-2 text-center font-black text-emerald-600">
+                            {formatCurrency(d.expectedCashFreed, isAr)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

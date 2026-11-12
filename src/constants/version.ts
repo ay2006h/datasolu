@@ -1,5 +1,5 @@
-export const APP_VERSION = 'v2.4.0';
-export const APP_VERSION_NUMBER = '2.4.0';
+export const APP_VERSION = 'v2.5.0';
+export const APP_VERSION_NUMBER = '2.5.0';
 export const APP_LAST_UPDATED = '2026-11-12';
 
 export interface VersionChangelogItem {
@@ -12,6 +12,30 @@ export interface VersionChangelogItem {
 }
 
 export const VERSION_CHANGELOG: VersionChangelogItem[] = [
+  {
+    version: 'v2.5.0',
+    date: '2026-11-12',
+    titleAr: 'منبه الأهداف السعرية، سجل التوزيعات، محاكي تعديل المتوسط، ميزانية أوامر الشراء، كاشف الرواكد، وأهداف ومقارنة المبيعات',
+    titleEn: 'Price Alerts, Dividends Tracker, Avg Cost Simulator, PO Budget Estimator, Dead Stock Advisor & Sales Targets/Comparison',
+    highlightsAr: [
+      'قسم البورصة (1): منبه ذكي للأهداف السعرية ووقف الخسارة وتنبيهات التشبع البيعي/الشرائي (RSI).',
+      'قسم البورصة (2): سجل توزيعات الأرباح النقدية للأسهم وإضافتها للسيولة وحساب العائد الكلي للسهم (ربح السعر + التوزيعات).',
+      'قسم البورصة (3): حاسبة محاكاة تعديل متوسط سعر الشراء (التعزيز قبل التنفيذ) داخل كل سهم مشترى.',
+      'قسم المخزون (4): محاكاة ميزانية أمر الشراء للأصناف المطلوب طلبها وترتيب الأولويات تلقائياً ضمن سقف الميزانية.',
+      'قسم المخزون (5): كاشف الأصناف الراكدة والسيولة المجمدة مع اقتراح نسبة خصم ترويجي لتحرير الكاش بدون خسارة.',
+      'قسم المبيعات (6): تحديد هدف المبيعات والأرباح الشهري ومؤشر نسبة الإنجاز والمعدل اليومي المطلوب.',
+      'قسم المبيعات (7): مقارنة فترتين (رفع ملف الشهر السابق أو مقارنة شطري الفترة الحالية) لكشف الأصناف والفروع النامية والمتراجعة.',
+    ],
+    highlightsEn: [
+      'Stocks (1): Smart Price, Target, Stop-Loss & RSI Oversold/Overbought Alert Radar.',
+      'Stocks (2): Cash Dividends Tracker with optional auto-credit to portfolio cash and Total Return calculation.',
+      'Stocks (3): Interactive Average Cost Down/Up Simulator inside each purchased stock card.',
+      'Inventory (4): Purchase Order Budget Simulator & Priority Optimizer for reorder items.',
+      'Inventory (5): Dead Stock Capital Lock Detector & Promotional Discount Liquidation Advisor.',
+      'Sales (6): Monthly Revenue & Net Profit Target Gauge with Required Daily Run-Rate.',
+      'Sales (7): Period-over-Period File & Snapshot Comparison for growing/declining products and branches.',
+    ],
+  },
   {
     version: 'v2.4.0',
     date: '2026-11-12',
